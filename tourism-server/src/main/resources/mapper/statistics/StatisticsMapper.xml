@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qinghuan.statistics.StatisticsMapper">
+
+    <!-- 支付和退款分别按各自发生时间统计，得到统计期内实际资金流入与流出。 -->
+    <select id="getOverview" resultType="com.qinghuan.pojo.vo.StatisticsOverviewVO">
+        select count(case
+                         when bo.paid_at &gt;= #{startTime} and bo.paid_at &lt; #{endTime}
+                             then 1 end) as paid_order_count,
+               coalesce(sum(case
+                                when bo.paid_at &gt;= #{startTime} and bo.paid_at &lt; #{endTime}
+                                    then bo.total_amount else 0 end), 0) as gross_revenue,
+               coalesce(sum(case
+                                when bo.refund_at &gt;= #{startTime} and bo.refund_at &lt; #{endTime}
+                                    then bo.total_amount else 0 end), 0) as refund_amount,
+               coalesce(sum(case
+                                when bo.paid_at &gt;= #{startTime} and bo.paid_at &lt; #{endTime}
+                                    then bo.quantity else 0 end), 0) as sold_ticket_count,
+               (select count(*)
+                from ticket t
+                join booking_order_item item on item.id = t.order_item_id
+                join booking_order ticket_order on ticket_order.id = item.order_id
+                join admission_session ticket_session on ticket_session.id = ticket_order.session_id
+                where ticket_session.venue_id = #{venueId}
+                  and t.verified_at &gt;= #{startTime}
+                  and t.verified_at &lt; #{endTime}) as verified_ticket_count
+        from booking_order bo
+        join admission_session s on s.id = bo.session_id
+        where s.venue_id = #{venueId}
+          and ((bo.paid_at &gt;= #{startTime} and bo.paid_at &lt; #{endTime})
+            or (bo.refund_at &gt;= #{startTime} and bo.refund_at &lt; #{endTime}))
+    </select>
+
+    <!-- 趋势仅展示有支付数据的日期，前端可按日期补零。 -->
+    <select id="listTrend" resultType="com.qinghuan.pojo.vo.StatisticsTrendVO">
+        select cast(bo.paid_at as date) as statistic_date,
+               count(*) as paid_order_count,
+               coalesce(sum(bo.total_amount), 0) as gross_revenue,
+               coalesce(sum(bo.quantity), 0) as sold_ticket_count
+        from booking_order bo
+        join admission_session s on s.id = bo.session_id
+        where s.venue_id = #{venueId}
+          and bo.paid_at &gt;= #{startTime}
+          and bo.paid_at &lt; #{endTime}
+        group by cast(bo.paid_at as date)
+        order by statistic_date
+    </select>
+
+    <!-- 使用订单明细快照，避免票种改名或改价后影响历史统计。 -->
+    <select id="listTicketTypeStatistics"
+            resultType="com.qinghuan.pojo.vo.TicketTypeStatisticsVO">
+        select item.ticket_type_name,
+               count(*) as sold_quantity,
+               coalesce(sum(item.unit_price), 0) as sales_amount
+        from booking_order_item item
+        join booking_order bo on bo.id = item.order_id
+        join admission_session s on s.id = bo.session_id
+        where s.venue_id = #{venueId}
+          and bo.paid_at &gt;= #{startTime}
+          and bo.paid_at &lt; #{endTime}
+        group by item.ticket_type_name
+        order by sold_quantity desc, item.ticket_type_name
+    </select>
+
+</mapper>

@@ -1,0 +1,197 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "运营统计接口",
+    "description": "当前运营者所属景点的基础经营统计。",
+    "version": "1.0.0"
+  },
+  "tags": [
+    {
+      "name": "Statistics",
+      "description": "运营端经营统计"
+    }
+  ],
+  "paths": {
+    "/operator/statistics/overview": {
+      "get": {
+        "tags": ["Statistics"],
+        "summary": "查询经营概览",
+        "operationId": "getStatisticsOverview",
+        "parameters": [
+          {"$ref": "#/components/parameters/StartDate"},
+          {"$ref": "#/components/parameters/EndDate"}
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/OverviewApiResponse"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    },
+    "/operator/statistics/trend": {
+      "get": {
+        "tags": ["Statistics"],
+        "summary": "查询每日销售趋势",
+        "operationId": "listStatisticsTrend",
+        "parameters": [
+          {"$ref": "#/components/parameters/StartDate"},
+          {"$ref": "#/components/parameters/EndDate"}
+        ],
+        "responses": {
+          "200": {
+            "description": "按支付日期升序返回；无销售的日期不返回记录",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/TrendApiResponse"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    },
+    "/operator/statistics/ticket-types": {
+      "get": {
+        "tags": ["Statistics"],
+        "summary": "查询票种销售排行",
+        "operationId": "listTicketTypeStatistics",
+        "parameters": [
+          {"$ref": "#/components/parameters/StartDate"},
+          {"$ref": "#/components/parameters/EndDate"}
+        ],
+        "responses": {
+          "200": {
+            "description": "按销量从高到低返回",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/TicketTypeStatisticsApiResponse"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "parameters": {
+      "StartDate": {
+        "name": "startDate",
+        "in": "query",
+        "required": true,
+        "description": "统计开始日期（包含当天）",
+        "schema": {"type": "string", "format": "date", "example": "2026-08-01"}
+      },
+      "EndDate": {
+        "name": "endDate",
+        "in": "query",
+        "required": true,
+        "description": "统计结束日期（包含当天）",
+        "schema": {"type": "string", "format": "date", "example": "2026-08-10"}
+      }
+    },
+    "schemas": {
+      "ApiResponse": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "example": "SUCCESS"},
+          "message": {"type": "string", "example": "操作成功"}
+        }
+      },
+      "StatisticsOverview": {
+        "type": "object",
+        "required": ["paidOrderCount", "grossRevenue", "refundAmount", "netRevenue", "soldTicketCount", "verifiedTicketCount"],
+        "properties": {
+          "paidOrderCount": {"type": "integer", "format": "int64", "minimum": 0},
+          "grossRevenue": {"type": "number", "minimum": 0, "example": 1250.00},
+          "refundAmount": {"type": "number", "minimum": 0, "example": 100.00},
+          "netRevenue": {"type": "number", "example": 1150.00},
+          "soldTicketCount": {"type": "integer", "format": "int64", "minimum": 0},
+          "verifiedTicketCount": {"type": "integer", "format": "int64", "minimum": 0}
+        }
+      },
+      "StatisticsTrend": {
+        "type": "object",
+        "required": ["statisticDate", "paidOrderCount", "grossRevenue", "soldTicketCount"],
+        "properties": {
+          "statisticDate": {"type": "string", "format": "date"},
+          "paidOrderCount": {"type": "integer", "format": "int64", "minimum": 0},
+          "grossRevenue": {"type": "number", "minimum": 0},
+          "soldTicketCount": {"type": "integer", "format": "int64", "minimum": 0}
+        }
+      },
+      "TicketTypeStatistics": {
+        "type": "object",
+        "required": ["ticketTypeName", "soldQuantity", "salesAmount"],
+        "properties": {
+          "ticketTypeName": {"type": "string", "example": "成人票"},
+          "soldQuantity": {"type": "integer", "format": "int64", "minimum": 0},
+          "salesAmount": {"type": "number", "minimum": 0, "example": 1000.00}
+        }
+      },
+      "OverviewApiResponse": {
+        "allOf": [
+          {"$ref": "#/components/schemas/ApiResponse"},
+          {"type": "object", "required": ["data"], "properties": {"data": {"$ref": "#/components/schemas/StatisticsOverview"}}}
+        ]
+      },
+      "TrendApiResponse": {
+        "allOf": [
+          {"$ref": "#/components/schemas/ApiResponse"},
+          {"type": "object", "required": ["data"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/StatisticsTrend"}}}}
+        ]
+      },
+      "TicketTypeStatisticsApiResponse": {
+        "allOf": [
+          {"$ref": "#/components/schemas/ApiResponse"},
+          {"type": "object", "required": ["data"], "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/TicketTypeStatistics"}}}}
+        ]
+      },
+      "ErrorApiResponse": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string", "example": "INVALID_REQUEST"},
+          "message": {"type": "string", "example": "请求参数不合法"}
+        }
+      }
+    },
+    "responses": {
+      "InvalidRequest": {
+        "description": "日期缺失、格式错误或结束日期早于开始日期",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorApiResponse"}}}
+      },
+      "Unauthorized": {
+        "description": "未登录",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorApiResponse"}}}
+      },
+      "Forbidden": {
+        "description": "当前账号不是运营者",
+        "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ErrorApiResponse"}}}
+      }
+    }
+  },
+  "security": [
+    {"bearerAuth": []}
+  ]
+}

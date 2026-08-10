@@ -80,5 +80,39 @@
           and tt.status = 'ENABLED'
         order by s.start_time, stt.id
     </select>
+    <!--
+    查询游客端可展示的场次。
+
+    不要求booking_start_at已经到达，也不要求存在剩余库存，
+    因此可以返回未开售和已售罄场次。
+-->
+    <select id="listVisibleSessionIds"
+            resultType="java.lang.Long">
+
+        select s.id
+        from admission_session s
+
+        join venue v
+        on v.id = s.venue_id
+
+        where s.venue_id = #{venueId}
+        and s.visit_date = #{visitDate}
+        and v.status = 'ENABLED'
+        and s.status = 'OPEN'
+        and s.booking_end_at > #{now}
+
+        <!-- 至少需要存在一个仍启用的场次票种。 -->
+        and exists (
+        select 1
+        from session_ticket_type stt
+        join ticket_type tt
+        on tt.id = stt.ticket_type_id
+        where stt.session_id = s.id
+        and stt.status = 'ON_SALE'
+        and tt.status = 'ENABLED'
+        )
+
+        order by s.start_time, s.id
+    </select>
 
 </mapper>

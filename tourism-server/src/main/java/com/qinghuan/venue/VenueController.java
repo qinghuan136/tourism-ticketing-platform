@@ -2,13 +2,15 @@ package com.qinghuan.venue;
 
 import com.qinghuan.annotation.RequireRole;
 import com.qinghuan.common.response.ApiResponse;
-import com.qinghuan.pojo.entity.Venue;
+import com.qinghuan.pojo.dto.VenueUpdateDTO;
 import com.qinghuan.pojo.enums.AccountRole;
+import com.qinghuan.pojo.vo.VenueVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,7 +19,6 @@ import org.springframework.web.multipart.MultipartFile;
 @Tag(name = "VenueController", description = "景点管理")
 public class VenueController {
 
-    @Autowired
     private final VenueService venueService;
 
     public VenueController(VenueService venueService) {
@@ -30,7 +31,7 @@ public class VenueController {
     @GetMapping("/operator/venue")
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "获取当前景点信息")
-    public ApiResponse<Venue> getCurrentVenue() {
+    public ApiResponse<VenueVO> getCurrentVenue() {
         return ApiResponse.success(venueService.getCurrentVenue());
     }
 
@@ -41,7 +42,7 @@ public class VenueController {
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "修改当前景点信息")
     public ApiResponse<Void> updateCurrentVenue(
-            Venue newVenue,
+            @Valid @ModelAttribute VenueUpdateDTO newVenue,
             @RequestParam(value = "coverImage", required = false) MultipartFile newCover) {
         venueService.updateCurrentVenue(newVenue, newCover);
         return ApiResponse.success();

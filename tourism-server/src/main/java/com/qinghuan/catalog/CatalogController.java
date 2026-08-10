@@ -2,7 +2,10 @@ package com.qinghuan.catalog;
 
 import com.qinghuan.common.response.ApiResponse;
 import com.qinghuan.pojo.dto.CatalogVenuePageQueryDTO;
+import com.qinghuan.pojo.dto.NearbyVenueByNameQueryDTO;
+import com.qinghuan.pojo.dto.NearbyVenueQueryDTO;
 import com.qinghuan.pojo.vo.CatalogVenueVO;
+import com.qinghuan.pojo.vo.NearbyVenueVO;
 import com.qinghuan.pojo.vo.PageResult;
 import com.qinghuan.pojo.vo.SellableSessionVO;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,6 +42,20 @@ public class CatalogController {
         return ApiResponse.success(catalogService.pageSellableVenues(queryDTO));
     }
 
+    @GetMapping("/public/venues/nearby")
+    @Operation(summary = "根据当前坐标查询附近景点")
+    public ApiResponse<List<NearbyVenueVO>> listNearbyVenues(
+            @Valid NearbyVenueQueryDTO queryDTO) {
+        return ApiResponse.success(catalogService.listNearbyVenues(queryDTO));
+    }
+
+    @GetMapping("/public/venues/nearby/by-name")
+    @Operation(summary = "根据地点名称查询附近景点")
+    public ApiResponse<List<NearbyVenueVO>> listNearbyVenuesByName(
+            @Valid NearbyVenueByNameQueryDTO queryDTO) {
+        return ApiResponse.success(catalogService.listNearbyVenuesByName(queryDTO));
+    }
+
     @GetMapping("/public/venues/{venueId}")
     @Operation(summary = "获取景点详情")
     public ApiResponse<CatalogVenueVO> getVenue(
@@ -47,7 +64,7 @@ public class CatalogController {
     }
 
     @GetMapping("/public/venues/{venueId}/sessions")
-    @Operation(summary = "按日期查询可售场次")
+    @Operation(summary = "按日期查询可展示场次")
     public ApiResponse<List<SellableSessionVO>> listSellableSessions(
             @PathVariable @Positive(message = "景点ID必须为正数") Long venueId,
             @RequestParam

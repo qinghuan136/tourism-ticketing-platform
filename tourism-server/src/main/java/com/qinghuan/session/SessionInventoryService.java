@@ -1,7 +1,9 @@
 package com.qinghuan.session;
 
+import com.qinghuan.pojo.vo.SessionInventorySnapshotVO;
 import com.qinghuan.pojo.vo.SessionTicketTypeVO;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -27,5 +29,13 @@ public interface SessionInventoryService {
      * 订单取消、超时关闭或退款时归还对应库存。
      */
     void releaseInventory(Long sessionId, Map<Long, Integer> ticketTypeQuantities);
+
+    /**
+     * 批量查询正在销售场次的动态库存。
+     */
+    List<SessionInventorySnapshotVO> listInventorySnapshots(
+            List<Long> sessionIds,
+            LocalDateTime now
+    );
 }
 

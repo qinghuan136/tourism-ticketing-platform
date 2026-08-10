@@ -13,6 +13,10 @@ import java.util.List;
 
 @Mapper
 public interface UserMapper {
+    /** 检查注册使用的登录名或手机号是否已经存在。 */
+    int countAccountByLoginNameOrPhone(@Param("loginName") String loginName,
+                                       @Param("phone") String phone);
+
     //保存用户账号
     public void saveAccount(UserAccount userAccount);
     //根据登录名和密码获取账号信息
@@ -29,6 +33,10 @@ public interface UserMapper {
     int updateStaffInfo(@Param("staffId") Long staffId,
                         @Param("venueId") Long venueId,
                         @Param("updateDTO") StaffAccountUpdateDTO updateDTO);
+
+    int resetStaffPassword(@Param("staffId") Long staffId,
+                           @Param("venueId") Long venueId,
+                           @Param("passwordHash") String passwordHash);
 
     List<Visitor> getVisitorsByUserId(Long userId);
 }

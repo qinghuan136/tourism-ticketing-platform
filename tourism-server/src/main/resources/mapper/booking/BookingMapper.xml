@@ -223,6 +223,16 @@
           and expire_at <![CDATA[<=]]> #{timeout}
     </select>
 
+    <update id="completePaidOrders">
+        update booking_order bo
+        join admission_session s on s.id = bo.session_id
+        set bo.status = 'COMPLETED',
+            bo.completed_at = #{now},
+            bo.updated_at = CURRENT_TIMESTAMP
+        where bo.status = 'PAID'
+          and s.status = 'ENDED'
+    </update>
+
     <!-- 数据库负责审计时间，useGeneratedKeys 将自增订单 ID 回填到实体。 -->
     <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         insert into booking_order

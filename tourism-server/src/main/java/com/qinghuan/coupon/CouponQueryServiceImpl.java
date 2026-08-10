@@ -7,19 +7,27 @@ import com.qinghuan.pojo.dto.UserCouponQueryDTO;
 import com.qinghuan.pojo.vo.CatalogCouponActivityVO;
 import com.qinghuan.pojo.vo.CouponClaimResultVO;
 import com.qinghuan.pojo.vo.UserCouponVO;
+import com.qinghuan.pojo.enums.CouponClaimStatus;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+
+import com.qinghuan.common.constant.cacheKeys.CouponConstant;
 
 @Service
 public class CouponQueryServiceImpl implements CouponQueryService {
 
     private final CouponMapper couponMapper;
+    private final StringRedisTemplate stringRedisTemplate;
 
-    public CouponQueryServiceImpl(CouponMapper couponMapper) {
+    public CouponQueryServiceImpl(CouponMapper couponMapper,
+                                  StringRedisTemplate stringRedisTemplate) {
         this.couponMapper = couponMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -30,11 +38,37 @@ public class CouponQueryServiceImpl implements CouponQueryService {
 
     @Override
     public CouponClaimResultVO getClaimResult(String requestId) {
+        Long userId = UserContext.getRequired().userId();
+        Map<Object, Object> cached = stringRedisTemplate.opsForHash()
+                .entries(CouponConstant.claimResultKey(requestId));
+        if (!cached.isEmpty()) {
+            // Redis 结果同样校验所属游客，不能只依赖难以猜测的 requestId。
+            if (!userId.toString().equals(String.valueOf(cached.get("userId")))) {
+                throw new BusinessException(ErrorCode.NOT_FOUND, "抢券请求不存在");
+            }
+            return toClaimResult(requestId, cached);
+        }
+
         // userId 放在 SQL 条件中，避免游客通过猜测 requestId 查询他人的领取结果。
         CouponClaimResultVO result = couponMapper.findClaimResult(
-                requestId, UserContext.getRequired().userId());
+                requestId, userId);
         if (result == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "抢券请求不存在");
+        }
+        return result;
+    }
+
+    private CouponClaimResultVO toClaimResult(
+            String requestId, Map<Object, Object> cached) {
+        CouponClaimResultVO result = new CouponClaimResultVO();
+        result.setRequestId(requestId);
+        result.setActivityId(Long.valueOf(cached.get("activityId").toString()));
+        result.setStatus(CouponClaimStatus.valueOf(cached.get("status").toString()));
+        if (cached.get("userCouponId") != null) {
+            result.setUserCouponId(Long.valueOf(cached.get("userCouponId").toString()));
+        }
+        if (cached.get("failureReason") != null) {
+            result.setFailureReason(cached.get("failureReason").toString());
         }
         return result;
     }

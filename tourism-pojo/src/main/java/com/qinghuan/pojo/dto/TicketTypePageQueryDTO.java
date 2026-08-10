@@ -1,14 +1,13 @@
 package com.qinghuan.pojo.dto;
 
-import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
+import jakarta.validation.constraints.Size;
 
-@Data
-@Setter
 @Getter
-public class TicketTypePageQueryDTO {
-    private int page = 1;
-    private int pageSize = 10;
+@Setter
+public class TicketTypePageQueryDTO extends PageQuery {
+
+    @Size(max = 100, message = "查询关键字不能超过100个字符")
     private String keyword;
 }

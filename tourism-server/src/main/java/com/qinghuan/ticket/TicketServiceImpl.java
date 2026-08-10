@@ -77,4 +77,9 @@ public class TicketServiceImpl implements TicketService {
     public int markUsed(Long ticketId, LocalDateTime verifiedAt) {
         return ticketMapper.markUsed(ticketId, verifiedAt);
     }
+
+    @Override
+    public int expireTickets(LocalDateTime now) {
+        return ticketMapper.expireTickets(now);
+    }
 }

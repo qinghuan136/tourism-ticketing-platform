@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "游客端可售内容查询接口",
-    "description": "游客查询当前可预约景点、景点资料以及指定日期的可售场次和票种。",
-    "version": "1.0.0"
+    "description": "游客查询当前可预约景点、附近景点、景点资料以及指定日期的可展示场次和票种。",
+    "version": "1.1.0"
   },
   "tags": [
     {
@@ -68,6 +68,88 @@
         }
       }
     },
+    "/public/venues/nearby": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "根据当前坐标查询附近景点",
+        "description": "以游客当前坐标为中心查询指定半径内的启用景点，并按距离从近到远返回。",
+        "operationId": "listNearbyVenues",
+        "parameters": [
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "description": "查询中心经度",
+            "schema": {"type": "number", "format": "double", "minimum": -180, "maximum": 180}
+          },
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "description": "查询中心纬度",
+            "schema": {"type": "number", "format": "double", "minimum": -90, "maximum": 90}
+          },
+          {
+            "$ref": "#/components/parameters/RadiusKm"
+          },
+          {
+            "$ref": "#/components/parameters/NearbyLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功；没有附近景点时 data 为空数组",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/NearbyVenueListApiResponse"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"}
+        }
+      }
+    },
+    "/public/venues/nearby/by-name": {
+      "get": {
+        "tags": ["Catalog"],
+        "summary": "根据地点名称查询附近景点",
+        "description": "先通过高德地理编码服务将地点名称转换为坐标，再查询附近景点。",
+        "operationId": "listNearbyVenuesByName",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "地点名称或地址",
+            "schema": {"type": "string", "maxLength": 100, "example": "广州塔"}
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "description": "可选城市，用于减少同名地点歧义",
+            "schema": {"type": "string", "maxLength": 50, "example": "广州"}
+          },
+          {
+            "$ref": "#/components/parameters/RadiusKm"
+          },
+          {
+            "$ref": "#/components/parameters/NearbyLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功；没有附近景点时 data 为空数组",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/NearbyVenueListApiResponse"}
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/InvalidRequest"}
+        }
+      }
+    },
     "/public/venues/{venueId}": {
       "get": {
         "tags": [
@@ -117,8 +199,8 @@
         "tags": [
           "Catalog"
         ],
-        "summary": "按日期查询可售场次",
-        "description": "查询启用景点在指定日期仍处于预约窗口内的开放场次，并返回各场次当前可售票种。",
+        "summary": "按日期查询可展示场次",
+        "description": "查询启用景点在指定日期已经发布且预约尚未结束的场次。未开售场次只返回静态资料，开售后额外返回动态库存。",
         "operationId": "listSellableSessions",
         "parameters": [
           {
@@ -130,7 +212,7 @@
         ],
         "responses": {
           "200": {
-            "description": "查询成功；没有可售场次时 data 为空数组",
+            "description": "查询成功；没有可展示场次时 data 为空数组",
             "content": {
               "application/json": {
                 "schema": {
@@ -145,7 +227,9 @@
                       "visitDate": "2026-08-03",
                       "startTime": "09:00:00",
                       "endTime": "11:00:00",
+                      "bookingStartAt": "2026-08-01T10:00:00",
                       "bookingEndAt": "2026-08-03T08:30:00",
+                      "saleState": "ON_SALE",
                       "remainingCapacity": 24,
                       "ticketTypes": [
                         {
@@ -214,6 +298,31 @@
         "schema": {
           "type": "string",
           "maxLength": 100
+        }
+      },
+      "RadiusKm": {
+        "name": "radiusKm",
+        "in": "query",
+        "required": false,
+        "description": "搜索半径，单位为公里",
+        "schema": {
+          "type": "number",
+          "format": "double",
+          "minimum": 0.1,
+          "maximum": 50,
+          "default": 5
+        }
+      },
+      "NearbyLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "最大返回数量",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 20
         }
       },
       "VenueId": {
@@ -313,6 +422,23 @@
           }
         }
       },
+      "NearbyVenue": {
+        "type": "object",
+        "required": ["id", "name", "address", "distanceKm"],
+        "properties": {
+          "id": {"type": "integer", "format": "int64"},
+          "name": {"type": "string"},
+          "address": {"type": "string"},
+          "description": {"type": "string", "nullable": true},
+          "coverUrl": {"type": "string", "nullable": true},
+          "distanceKm": {
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "description": "距查询中心的公里数"
+          }
+        }
+      },
       "SellableSession": {
         "type": "object",
         "required": [
@@ -320,8 +446,9 @@
           "visitDate",
           "startTime",
           "endTime",
+          "bookingStartAt",
           "bookingEndAt",
-          "remainingCapacity",
+          "saleState",
           "ticketTypes"
         ],
         "properties": {
@@ -345,15 +472,30 @@
             "format": "time",
             "description": "场次结束时间"
           },
+          "bookingStartAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "预约开始时间"
+          },
           "bookingEndAt": {
             "type": "string",
             "format": "date-time",
             "description": "预约截止时间"
           },
+          "saleState": {
+            "type": "string",
+            "enum": [
+              "NOT_STARTED",
+              "ON_SALE",
+              "SOLD_OUT"
+            ],
+            "description": "游客端场次销售展示状态"
+          },
           "remainingCapacity": {
             "type": "integer",
-            "minimum": 1,
-            "description": "场次当前剩余总容量"
+            "minimum": 0,
+            "nullable": true,
+            "description": "场次当前剩余总容量；未开售时不返回"
           },
           "ticketTypes": {
             "type": "array",
@@ -369,8 +511,7 @@
         "required": [
           "sessionTicketTypeId",
           "ticketTypeName",
-          "salePrice",
-          "remainingQuantity"
+          "salePrice"
         ],
         "properties": {
           "sessionTicketTypeId": {
@@ -400,8 +541,9 @@
           },
           "remainingQuantity": {
             "type": "integer",
-            "minimum": 1,
-            "description": "该场次票种当前剩余数量"
+            "minimum": 0,
+            "nullable": true,
+            "description": "该场次票种当前剩余数量；未开售时不返回"
           }
         }
       },
@@ -471,6 +613,23 @@
           }
         ]
       },
+      "NearbyVenueListApiResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ApiResponse"
+          },
+          {
+            "type": "object",
+            "required": ["data"],
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {"$ref": "#/components/schemas/NearbyVenue"}
+              }
+            }
+          }
+        ]
+      },
       "SessionListApiResponse": {
         "allOf": [
           {
@@ -529,7 +688,7 @@
     },
     "responses": {
       "InvalidRequest": {
-        "description": "分页、关键词、景点 ID 或参观日期参数不合法",
+        "description": "分页、坐标、搜索半径、地点名称、景点 ID 或参观日期参数不合法",
         "content": {
           "application/json": {
             "schema": {

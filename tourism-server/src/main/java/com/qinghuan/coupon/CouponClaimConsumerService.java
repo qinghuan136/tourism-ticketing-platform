@@ -23,6 +23,11 @@ public class CouponClaimConsumerService {
         this.couponMapper = couponMapper;
     }
 
+    /** DLT 补偿前查询 MySQL 最终结果，防止成功发券后误恢复 Redis 库存。 */
+    public CouponClaimRequest findProcessedResult(String requestId) {
+        return couponMapper.findClaimRequestById(requestId);
+    }
+
     /**
      * 在一个 MySQL 事务中完成库存扣减、发券和结果记录。
      *

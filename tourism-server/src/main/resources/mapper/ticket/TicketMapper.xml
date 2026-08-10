@@ -109,4 +109,12 @@
           and valid_until &gt; #{verifiedAt}
     </update>
 
+    <update id="expireTickets">
+        update ticket
+        set status = 'EXPIRED',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'VALID'
+          and valid_until &lt;= #{now}
+    </update>
+
 </mapper>

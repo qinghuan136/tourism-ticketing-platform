@@ -5,10 +5,13 @@ import com.qinghuan.pojo.dto.SessionTicketTypeConfigDTO;
 import com.qinghuan.pojo.entity.AdmissionSession;
 import com.qinghuan.pojo.entity.SessionTicketType;
 import com.qinghuan.pojo.enums.AdmissionSessionStatus;
+import com.qinghuan.pojo.vo.SessionInventorySnapshotVO;
+import com.qinghuan.pojo.vo.SessionStaticSnapshotVO;
 import com.qinghuan.pojo.vo.SessionTicketTypeVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -123,4 +126,31 @@ public interface SessionMapper {
      */
     int deleteDraftSession(@Param("id") Long id,
                            @Param("venueId") Long venueId);
+
+    /**
+     * 查询一个开放场次及其票种静态信息。
+     *
+     * 不查询任何剩余容量和剩余库存字段。
+     */
+    SessionStaticSnapshotVO findStaticSnapshot(Long sessionId);
+    /**
+     * 批量查询正在预约窗口内的场次库存。
+     */
+    List<SessionInventorySnapshotVO> listInventorySnapshots(
+            @Param("sessionIds") List<Long> sessionIds,
+            @Param("now") LocalDateTime now
+    );
+
+    /**
+     * 查询使用指定基础票种的场次，供 Canal 精确清理场次静态缓存。
+     */
+    List<Long> listSessionIdsByTicketTypeId(
+            @Param("ticketTypeId") Long ticketTypeId
+    );
+
+    /** 将预约窗口已结束的开放场次收口为 CLOSED。 */
+    int closeExpiredBookings(@Param("now") LocalDateTime now);
+
+    /** 将参观时间已结束的开放或关闭场次收口为 ENDED。 */
+    int endExpiredSessions(@Param("now") LocalDateTime now);
 }

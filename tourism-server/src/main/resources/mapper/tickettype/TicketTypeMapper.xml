@@ -30,6 +30,10 @@
         select id, name, description, audience_rule, base_price, status, created_at, updated_at
         from ticket_type
         where venue_id = #{venueId}
+        <if test="keyword != null and keyword != ''">
+            and name like concat('%', #{keyword}, '%')
+        </if>
+        order by created_at desc, id desc
     </select>
     <select id="getTicketTypeById" resultType="com.qinghuan.pojo.entity.TicketType">
         select id, name, description, audience_rule, base_price, status, created_at, updated_at

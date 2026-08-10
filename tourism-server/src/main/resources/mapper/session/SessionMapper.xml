@@ -29,7 +29,7 @@
     </select>
 
     <select id="findByIdForOrder" resultType="com.qinghuan.pojo.entity.AdmissionSession">
-        select id, visit_date, start_time
+        select id, venue_id, visit_date, start_time
         from admission_session
         where id = #{id}
     </select>
@@ -163,7 +163,7 @@
         select count(*)
         from booking_order
         where session_id = #{sessionId}
-          and status not in ('CANCELLED', 'CLOSED')
+          and status in ('PENDING_PAYMENT', 'PAID')
     </select>
 
     <update id="updateStatus">
@@ -183,11 +183,175 @@
         select count(*) from booking_order where session_id = #{sessionId}
     </select>
 
+    <!--
+    将一条场次和多条票种配置聚合成一个静态快照。
+    缓存内容不包含remaining_capacity和remaining_quantity。
+-->
+    <resultMap id="sessionStaticSnapshotResultMap"
+               type="com.qinghuan.pojo.vo.SessionStaticSnapshotVO">
+
+        <id property="sessionId" column="session_id"/>
+
+        <result property="venueId" column="venue_id"/>
+        <result property="visitDate" column="visit_date"/>
+        <result property="startTime" column="start_time"/>
+        <result property="endTime" column="end_time"/>
+        <result property="bookingStartAt" column="booking_start_at"/>
+        <result property="bookingEndAt" column="booking_end_at"/>
+
+        <collection property="ticketTypes"
+                    ofType="com.qinghuan.pojo.vo.SessionTicketTypeStaticVO">
+
+            <id property="sessionTicketTypeId"
+                column="session_ticket_type_id"/>
+
+            <result property="ticketTypeId"
+                    column="ticket_type_id"/>
+
+            <result property="ticketTypeName"
+                    column="ticket_type_name"/>
+
+            <result property="description"
+                    column="ticket_type_description"/>
+
+            <result property="audienceRule"
+                    column="audience_rule"/>
+
+            <result property="salePrice"
+                    column="sale_price"/>
+        </collection>
+    </resultMap>
+
+    <!--
+    静态快照不根据当前时间过滤。
+
+    原因是同一份静态缓存需要在开售前和开售后复用，
+    是否已经开售由Service根据booking_start_at实时计算。
+-->
+    <select id="findStaticSnapshot"
+            resultMap="sessionStaticSnapshotResultMap">
+
+        select s.id as session_id,
+               s.venue_id,
+               s.visit_date,
+               s.start_time,
+               s.end_time,
+               s.booking_start_at,
+               s.booking_end_at,
+
+               stt.id as session_ticket_type_id,
+               stt.ticket_type_id,
+               stt.sale_price,
+
+               tt.name as ticket_type_name,
+               tt.description as ticket_type_description,
+               tt.audience_rule
+
+        from admission_session s
+
+                 join session_ticket_type stt
+                      on stt.session_id = s.id
+
+                 join ticket_type tt
+                      on tt.id = stt.ticket_type_id
+
+        where s.id = #{sessionId}
+          and s.status = 'OPEN'
+          and stt.status = 'ON_SALE'
+          and tt.status = 'ENABLED'
+
+        order by stt.id
+    </select>
+    <resultMap id="sessionInventorySnapshotResultMap"
+               type="com.qinghuan.pojo.vo.SessionInventorySnapshotVO">
+
+        <id property="sessionId" column="session_id"/>
+
+        <result property="remainingCapacity"
+                column="remaining_capacity"/>
+
+        <collection property="ticketTypes"
+                    ofType="com.qinghuan.pojo.vo.SessionTicketTypeInventoryVO">
+
+            <id property="sessionTicketTypeId"
+                column="session_ticket_type_id"/>
+
+            <result property="remainingQuantity"
+                    column="remaining_quantity"/>
+        </collection>
+    </resultMap>
+
+    <!--
+    动态库存不进入Caffeine，每次查询数据库当前值。
+    不过滤库存为0的票种，因为前端需要展示“已售罄”。
+-->
+    <select id="listInventorySnapshots"
+            resultMap="sessionInventorySnapshotResultMap">
+
+        select s.id as session_id,
+        s.remaining_capacity,
+
+        stt.id as session_ticket_type_id,
+        stt.remaining_quantity
+
+        from admission_session s
+
+        join session_ticket_type stt
+        on stt.session_id = s.id
+
+        join ticket_type tt
+        on tt.id = stt.ticket_type_id
+
+        where s.id in
+        <foreach collection="sessionIds"
+                 item="sessionId"
+                 open="("
+                 separator=","
+                 close=")">
+            #{sessionId}
+        </foreach>
+
+        and s.status = 'OPEN'
+        and s.booking_start_at &lt;= #{now}
+        and s.booking_end_at > #{now}
+        and stt.status = 'ON_SALE'
+        and tt.status = 'ENABLED'
+
+        order by s.id, stt.id
+    </select>
+
+    <!-- 基础票种变化时，定位所有需要失效静态缓存的场次。 -->
+    <select id="listSessionIdsByTicketTypeId"
+            resultType="java.lang.Long">
+        select session_id
+        from session_ticket_type
+        where ticket_type_id = #{ticketTypeId}
+    </select>
+
+
+
     <delete id="deleteDraftSession">
         delete from admission_session
         where id = #{id}
           and venue_id = #{venueId}
           and status = 'DRAFT'
     </delete>
+
+    <update id="closeExpiredBookings">
+        update admission_session
+        set status = 'CLOSED',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'OPEN'
+          and booking_end_at &lt;= #{now}
+          and timestamp(visit_date, end_time) &gt; #{now}
+    </update>
+
+    <update id="endExpiredSessions">
+        update admission_session
+        set status = 'ENDED',
+            updated_at = CURRENT_TIMESTAMP
+        where status in ('OPEN', 'CLOSED')
+          and timestamp(visit_date, end_time) &lt;= #{now}
+    </update>
 
 </mapper>

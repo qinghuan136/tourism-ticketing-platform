@@ -170,3 +170,32 @@ aliyun:
     access-key-id: ${OSS_ACCESS_KEY_ID:YOUR_OSS_ACCESS_KEY_ID}
     access-key-secret: ${OSS_ACCESS_KEY_SECRET:YOUR_OSS_ACCESS_KEY_SECRET}
     bucket-name: ${OSS_BUCKET_NAME:YOUR_OSS_BUCKET_NAME}
+app:
+  amap:
+    # 高德 Web 服务地理编码接口。使用前需申请 Web 服务 Key。
+    base-url: ${AMAP_BASE_URL:https://restapi.amap.com}
+    key: ${AMAP_WEB_SERVICE_KEY:YOUR_AMAP_WEB_SERVICE_KEY}
+
+  venue-geo:
+    # 启动时根据 MySQL 中的启用景点重建 Redis GEO 索引。
+    preload-enabled: ${VENUE_GEO_PRELOAD_ENABLED:true}
+
+  canal:
+    # 多实例部署时，只允许一个实例开启
+    enabled: ${CANAL_ENABLED:true}
+
+    host: ${CANAL_HOST:127.0.0.1}
+    port: ${CANAL_PORT:11111}
+    destination: ${CANAL_DESTINATION:example}
+
+    # 这是 Canal Server 的 TCP 账号，不是 MySQL 账号。
+    # Canal Server 没配置认证时可以留空。
+    username: ${CANAL_USERNAME:}
+    password: ${CANAL_PASSWORD:}
+
+    database: ${DB_NAME:tourism_ticketing_platform}
+
+    # 客户端再过滤一次，只接收相关表
+    subscribe: 'tourism_ticketing_platform\.(venue|admission_session|ticket_type|session_ticket_type)'
+
+    batch-size: 100

@@ -2,10 +2,12 @@ package com.qinghuan.session;
 
 import com.qinghuan.common.exception.BusinessException;
 import com.qinghuan.common.exception.ErrorCode;
+import com.qinghuan.pojo.vo.SessionInventorySnapshotVO;
 import com.qinghuan.pojo.vo.SessionTicketTypeVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -71,6 +73,22 @@ public class SessionInventoryServiceImpl implements SessionInventoryService {
                 throw new BusinessException(ErrorCode.CONFLICT, "场次票种数量不能重复归还");
             }
         }
+    }
+
+    @Override
+    public List<SessionInventorySnapshotVO> listInventorySnapshots(
+            List<Long> sessionIds,
+            LocalDateTime now) {
+
+        // MyBatis不能生成空的IN条件。
+        if (sessionIds.isEmpty()) {
+            return List.of();
+        }
+
+        return sessionMapper.listInventorySnapshots(
+                sessionIds,
+                now
+        );
     }
 
     /**

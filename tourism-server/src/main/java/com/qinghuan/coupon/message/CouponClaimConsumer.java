@@ -1,15 +1,11 @@
 package com.qinghuan.coupon.message;
 
-import com.qinghuan.common.constant.cacheKeys.CouponConstant;
+import com.qinghuan.coupon.CouponClaimCompensationService;
 import com.qinghuan.coupon.CouponClaimConsumerService;
 import com.qinghuan.pojo.entity.CouponClaimRequest;
-import com.qinghuan.pojo.enums.CouponClaimStatus;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-
-import java.util.concurrent.TimeUnit;
 
 /**
  * 优惠券抢券消息消费者。
@@ -19,18 +15,19 @@ import java.util.concurrent.TimeUnit;
 public class CouponClaimConsumer {
 
     private final CouponClaimConsumerService consumerService;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final CouponClaimCompensationService compensationService;
 
     public CouponClaimConsumer(
             CouponClaimConsumerService consumerService,
-            StringRedisTemplate stringRedisTemplate) {
+            CouponClaimCompensationService compensationService) {
         this.consumerService = consumerService;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.compensationService = compensationService;
     }
 
     @KafkaListener(
             topics = CouponKafkaConstant.CLAIM_COMMAND_TOPIC,
-            groupId = CouponKafkaConstant.CLAIM_CONSUMER_GROUP
+            groupId = CouponKafkaConstant.CLAIM_CONSUMER_GROUP,
+            containerFactory = "couponClaimKafkaListenerContainerFactory"
     )
     public void consume(CouponClaimCommand command) {
         log.info(
@@ -47,7 +44,7 @@ public class CouponClaimConsumer {
         CouponClaimRequest result =
                 consumerService.process(command);
 
-        updateRedisResult(result);
+        compensationService.syncDatabaseResult(result);
 
         log.info(
                 "抢券消息处理完成，requestId={}，status={}",
@@ -56,39 +53,4 @@ public class CouponClaimConsumer {
         );
     }
 
-    /**
-     * MySQL 是最终结果，事务提交后同步 Redis 快速查询状态。
-     */
-    private void updateRedisResult(CouponClaimRequest result) {
-        String resultKey =
-                CouponConstant.claimResultKey(result.getRequestId());
-
-        stringRedisTemplate.opsForHash().put(
-                resultKey,
-                "status",
-                result.getStatus().name()
-        );
-
-        if (result.getStatus() == CouponClaimStatus.SUCCESS) {
-            stringRedisTemplate.opsForHash().put(
-                    resultKey,
-                    "userCouponId",
-                    result.getUserCouponId().toString()
-            );
-        }
-
-        if (result.getStatus() == CouponClaimStatus.FAILED) {
-            stringRedisTemplate.opsForHash().put(
-                    resultKey,
-                    "failureReason",
-                    result.getFailureReason()
-            );
-        }
-
-        stringRedisTemplate.expire(
-                resultKey,
-                CouponConstant.CLAIM_RESULT_TTL_SECONDS,
-                TimeUnit.SECONDS
-        );
-    }
 }

@@ -10,7 +10,8 @@ import java.util.List;
 @Mapper
 public interface TicketTypeMapper {
     // 列出景点票种
-    public List<TicketType> list(Long venueId);
+    public List<TicketType> list(@Param("venueId") Long venueId,
+                                 @Param("keyword") String keyword);
     // 获取票种详情
     public TicketType getTicketTypeById(Long id, Long venueId);
     // 新建票种

@@ -97,7 +97,20 @@ public class CouponPreheatServiceImpl implements CouponPreheatService {
         }
 
         try {
-            return writeActivityCache(activity);
+            /*
+             * 多实例可能在加锁前同时查到 cache_ready=0。
+             * 拿到锁后重新读取，避免后获得锁的实例用旧数据重复预热，
+             * 并在条件更新失败时误删前一个实例已经写好的 Redis 缓存。
+             */
+            CouponActivity latestActivity =
+                    couponMapper.findActivityForClaim(activity.getId());
+
+            if (latestActivity == null
+                    || Boolean.TRUE.equals(latestActivity.getCacheReady())) {
+                return false;
+            }
+
+            return writeActivityCache(latestActivity);
         } finally {
             if (lock.isHeldByCurrentThread()) {
                 lock.unlock();

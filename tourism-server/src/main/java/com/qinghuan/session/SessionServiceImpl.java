@@ -1,8 +1,10 @@
 package com.qinghuan.session;
 
+import com.github.benmanes.caffeine.cache.Cache;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.qinghuan.auth.context.UserContext;
+import com.qinghuan.common.constant.cacheKeys.SessionCacheConstant;
 import com.qinghuan.common.exception.BusinessException;
 import com.qinghuan.common.exception.ErrorCode;
 import com.qinghuan.pojo.dto.SessionPageQueryDTO;
@@ -14,7 +16,11 @@ import com.qinghuan.pojo.enums.AdmissionSessionStatus;
 import com.qinghuan.pojo.enums.SaleStatus;
 import com.qinghuan.pojo.enums.SessionEvent;
 import com.qinghuan.pojo.vo.PageResult;
+import com.qinghuan.pojo.vo.SessionStaticSnapshotVO;
+import com.qinghuan.pojo.vo.SessionTicketTypeStaticVO;
 import com.qinghuan.pojo.vo.SessionVO;
+import com.qinghuan.redis.CacheClient;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,14 +29,25 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class SessionServiceImpl implements SessionService {
 
     private final SessionMapper sessionMapper;
+    private final CacheClient cacheClient;
 
-    public SessionServiceImpl(SessionMapper sessionMapper) {
+    private final Cache<Long, SessionStaticSnapshotVO>
+            sessionStaticLocalCache;
+
+    public SessionServiceImpl(
+            SessionMapper sessionMapper,
+            CacheClient cacheClient,
+            @Qualifier("sessionStaticLocalCache")
+            Cache<Long, SessionStaticSnapshotVO> sessionStaticLocalCache) {
         this.sessionMapper = sessionMapper;
+        this.cacheClient = cacheClient;
+        this.sessionStaticLocalCache = sessionStaticLocalCache;
     }
 
     /**
@@ -297,5 +314,130 @@ public class SessionServiceImpl implements SessionService {
             ticketType.setStatus(SaleStatus.ON_SALE);
             return ticketType;
         }).toList();
+    }
+
+    /**
+     * 查询场次票种静态快照。
+     *
+     * 查询顺序：
+     * Caffeine -> Redis -> MySQL
+     */
+    @Override
+    public SessionStaticSnapshotVO getSessionStaticSnapshot(Long sessionId) {
+
+        SessionStaticSnapshotVO cachedSnapshot =
+                sessionStaticLocalCache.get(
+                        sessionId,
+
+                        /*
+                         * 只有Caffeine未命中时才执行这里。
+                         * CacheClient内部继续完成Redis和MySQL查询。
+                         */
+                        id -> cacheClient.queryWithPassThrough(
+                                SessionCacheConstant.SESSION_STATIC_PREFIX,
+                                id,
+                                SessionStaticSnapshotVO.class,
+                                sessionMapper::findStaticSnapshot,
+                                SessionCacheConstant.SESSION_STATIC_TTL,
+                                TimeUnit.SECONDS
+                        )
+                );
+
+        if (cachedSnapshot == null) {
+            throw new BusinessException(
+                    ErrorCode.NOT_FOUND,
+                    "场次不存在或当前不可展示"
+            );
+        }
+
+        /*
+         * 返回深拷贝，避免调用方在补充动态库存时，
+         * 直接修改Caffeine中保存的静态对象。
+         */
+        return copyStaticSnapshot(cachedSnapshot);
+    }
+
+
+    /**
+     * 删除场次静态快照的二级缓存。
+     */
+    @Override
+    public void evictSessionStaticSnapshot(Long sessionId) {
+
+        /*
+         * 先删除Redis，再删除Caffeine。
+         *
+         * 避免Caffeine刚被删除时，
+         * 并发请求从旧Redis重新回填本地缓存。
+         */
+        cacheClient.delete(
+                SessionCacheConstant.SESSION_STATIC_PREFIX + sessionId
+        );
+
+        sessionStaticLocalCache.invalidate(sessionId);
+    }
+
+    /**
+     * 基础票种发生变化时，找出所有引用它的场次进行精确缓存失效。
+     */
+    @Override
+    public List<Long> listSessionIdsByTicketTypeId(Long ticketTypeId) {
+        return sessionMapper.listSessionIdsByTicketTypeId(ticketTypeId);
+    }
+
+    @Override
+    @Transactional
+    public int maintainLifecycle(LocalDateTime now) {
+        int closed = sessionMapper.closeExpiredBookings(now);
+        int ended = sessionMapper.endExpiredSessions(now);
+        return closed + ended;
+    }
+
+    /**
+     * 深拷贝静态快照。
+     *
+     * 后期开售后需要向响应中补充动态库存，
+     * 因此不能直接把Caffeine中的原对象交给调用方修改。
+     */
+    private SessionStaticSnapshotVO copyStaticSnapshot(
+            SessionStaticSnapshotVO source) {
+
+        SessionStaticSnapshotVO target =
+                new SessionStaticSnapshotVO();
+
+        target.setSessionId(source.getSessionId());
+        target.setVenueId(source.getVenueId());
+        target.setVisitDate(source.getVisitDate());
+        target.setStartTime(source.getStartTime());
+        target.setEndTime(source.getEndTime());
+        target.setBookingStartAt(source.getBookingStartAt());
+        target.setBookingEndAt(source.getBookingEndAt());
+
+        target.setTicketTypes(
+                source.getTicketTypes()
+                        .stream()
+                        .map(this::copyStaticTicketType)
+                        .toList()
+        );
+
+        return target;
+    }
+
+    private SessionTicketTypeStaticVO copyStaticTicketType(
+            SessionTicketTypeStaticVO source) {
+
+        SessionTicketTypeStaticVO target =
+                new SessionTicketTypeStaticVO();
+
+        target.setSessionTicketTypeId(
+                source.getSessionTicketTypeId()
+        );
+        target.setTicketTypeId(source.getTicketTypeId());
+        target.setTicketTypeName(source.getTicketTypeName());
+        target.setDescription(source.getDescription());
+        target.setAudienceRule(source.getAudienceRule());
+        target.setSalePrice(source.getSalePrice());
+
+        return target;
     }
 }

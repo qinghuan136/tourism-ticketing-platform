@@ -4,9 +4,11 @@ import com.qinghuan.pojo.dto.SessionPageQueryDTO;
 import com.qinghuan.pojo.dto.SessionWriteDTO;
 import com.qinghuan.pojo.enums.SessionEvent;
 import com.qinghuan.pojo.vo.PageResult;
+import com.qinghuan.pojo.vo.SessionStaticSnapshotVO;
 import com.qinghuan.pojo.vo.SessionVO;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public interface SessionService {
 
@@ -47,4 +49,25 @@ public interface SessionService {
      * 删除没有订单的草稿场次及其票种配置。
      */
     void deleteDraftSession(Long sessionId);
+
+    /**
+     * 通过Caffeine、Redis、MySQL查询场次票种静态快照。
+     */
+    SessionStaticSnapshotVO getSessionStaticSnapshot(Long sessionId);
+
+    /**
+     * 删除指定场次的Redis和Caffeine静态快照。
+     *
+     * 供场次写操作、票种写操作和后续Canal消费端调用。
+     */
+    void evictSessionStaticSnapshot(Long sessionId);
+
+    /**
+     * 查询使用指定基础票种的场次，供 Canal 定位需要失效的缓存。
+     */
+    List<Long> listSessionIdsByTicketTypeId(Long ticketTypeId);
+
+    /** 定时收口预约结束和参观结束的场次状态。 */
+    int maintainLifecycle(LocalDateTime now);
+
 }

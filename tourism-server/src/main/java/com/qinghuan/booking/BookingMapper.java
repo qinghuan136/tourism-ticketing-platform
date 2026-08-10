@@ -61,4 +61,7 @@ public interface BookingMapper {
 
     // 列出所有超时订单
     List<BookingOrder> listTimeoutOrders(LocalDateTime timeout);
+
+    /** 场次结束后将已支付订单收口为 COMPLETED。 */
+    int completePaidOrders(@Param("now") LocalDateTime now);
 }

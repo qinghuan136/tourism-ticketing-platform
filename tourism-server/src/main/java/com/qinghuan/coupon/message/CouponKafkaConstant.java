@@ -17,6 +17,10 @@ public final class CouponKafkaConstant {
     public static final String CLAIM_CONSUMER_GROUP =
             "coupon-claim-consumer-v1";
 
+    /** 死信补偿消费者组。 */
+    public static final String CLAIM_DLT_CONSUMER_GROUP =
+            "coupon-claim-dlt-compensation-v1";
+
     private CouponKafkaConstant() {
     }
 }

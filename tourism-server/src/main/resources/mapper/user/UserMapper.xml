@@ -5,6 +5,15 @@
 
 <mapper namespace="com.qinghuan.user.UserMapper">
 
+    <select id="countAccountByLoginNameOrPhone" resultType="int">
+        select count(*)
+        from user_account
+        where login_name = #{loginName}
+        <if test="phone != null and phone != ''">
+            or phone = #{phone}
+        </if>
+    </select>
+
     <insert id="saveAccount">
         insert into user_account(login_name, password_hash, display_name, phone, role_code, venue_id, status, created_at, updated_at)
         values (#{loginName}, #{passwordHash}, #{displayName}, #{phone}, #{roleCode}, #{venueId}, #{status}, #{createdAt}, #{updatedAt})
@@ -41,6 +50,14 @@
         update user_account
         set display_name = #{updateDTO.displayName},
             phone = #{updateDTO.phone},
+            updated_at = CURRENT_TIMESTAMP
+        where id = #{staffId}
+          and role_code = 'STAFF'
+          and venue_id = #{venueId}
+    </update>
+    <update id="resetStaffPassword">
+        update user_account
+        set password_hash = #{passwordHash},
             updated_at = CURRENT_TIMESTAMP
         where id = #{staffId}
           and role_code = 'STAFF'

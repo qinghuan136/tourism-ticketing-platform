@@ -13,7 +13,7 @@ public interface TicketTypeService {
     // 获取票种详情
     public TicketType getTicketTypeById(Long id);
     // 新建票种
-    public Integer createTicketType(TicketType ticketType);
+    public Integer createTicketType(TicketTypeUpdateDTO ticketType);
     // 修改票种
     void updateTicketType(Long id, TicketTypeUpdateDTO updateDTO);
     // 批量删除票种

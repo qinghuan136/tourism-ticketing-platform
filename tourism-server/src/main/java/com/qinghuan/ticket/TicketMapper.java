@@ -41,4 +41,7 @@ public interface TicketMapper {
     /** 核销时使用状态和有效期条件更新，数据库负责裁决并发请求。 */
     int markUsed(@Param("ticketId") Long ticketId,
                  @Param("verifiedAt") LocalDateTime verifiedAt);
+
+    /** 将超过有效期但仍未使用的票券收口为 EXPIRED。 */
+    int expireTickets(@Param("now") LocalDateTime now);
 }

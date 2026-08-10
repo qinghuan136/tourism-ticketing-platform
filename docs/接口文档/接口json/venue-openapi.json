@@ -144,6 +144,22 @@
           },
           "status": {
             "$ref": "#/components/schemas/VenueStatus"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180,
+            "maximum": 180,
+            "nullable": true,
+            "description": "景点经度"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90,
+            "maximum": 90,
+            "nullable": true,
+            "description": "景点纬度"
           }
         }
       },
@@ -176,6 +192,24 @@
           },
           "status": {
             "$ref": "#/components/schemas/VenueStatus"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180,
+            "maximum": 180,
+            "nullable": true,
+            "description": "景点经度",
+            "example": 113.3245
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90,
+            "maximum": 90,
+            "nullable": true,
+            "description": "景点纬度",
+            "example": 23.1067
           },
           "coverImage": {
             "type": "string",

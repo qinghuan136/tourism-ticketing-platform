@@ -21,13 +21,29 @@
             <if test="newVenue.status != null">
                 status = #{newVenue.status},
             </if>
+            <if test="newVenue.longitude != null">
+                longitude = #{newVenue.longitude},
+            </if>
+            <if test="newVenue.latitude != null">
+                latitude = #{newVenue.latitude},
+            </if>
         </set>
         where id = #{id}
     </update>
 
     <select id="getVenueById" resultType="com.qinghuan.pojo.entity.Venue">
-        select id, name, address, description, cover_object_key, status, created_at, updated_at
+        select id, name, address, description, cover_object_key, status,
+               longitude, latitude, created_at, updated_at
         from venue
         where id = #{id}
+    </select>
+
+    <select id="listEnabledVenueCoordinates"
+            resultType="com.qinghuan.pojo.entity.Venue">
+        select id, status, longitude, latitude
+        from venue
+        where status = 'ENABLED'
+          and longitude is not null
+          and latitude is not null
     </select>
 </mapper>

@@ -45,4 +45,7 @@ public interface BookingService {
     void cancelTimeoutOrder(Long id);
 
     List<BookingOrder> listTimeoutOrders();
+
+    /** 定时完成所属场次已经结束的已支付订单。 */
+    int completePaidOrders(java.time.LocalDateTime now);
 }

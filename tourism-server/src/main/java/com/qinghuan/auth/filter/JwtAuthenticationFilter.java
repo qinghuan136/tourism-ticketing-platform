@@ -4,6 +4,7 @@ import com.qinghuan.auth.config.JwtProperties;
 import com.qinghuan.auth.context.UserContext;
 import com.qinghuan.auth.jwt.JwtUtils;
 import com.qinghuan.auth.model.LoginUser;
+import com.qinghuan.common.constant.cacheKeys.AccountConstant;
 import com.qinghuan.common.exception.ErrorCode;
 import com.qinghuan.common.response.ApiResponse;
 import io.jsonwebtoken.JwtException;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.databind.ObjectMapper;
@@ -36,15 +38,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
     private final JwtProperties jwtProperties;
     private final ObjectMapper objectMapper;
+    private final StringRedisTemplate stringRedisTemplate;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public JwtAuthenticationFilter(
             JwtUtils jwtUtils,
             JwtProperties jwtProperties,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            StringRedisTemplate stringRedisTemplate) {
         this.jwtUtils = jwtUtils;
         this.jwtProperties = jwtProperties;
         this.objectMapper = objectMapper;
+        this.stringRedisTemplate = stringRedisTemplate;
     }
 
     @Override
@@ -72,6 +77,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             loginUser = jwtUtils.parseAccessToken(token);
         } catch (JwtException | IllegalArgumentException exception) {
             writeUnauthorized(response, "登录状态已失效，请重新登录");
+            return;
+        }
+
+        // 停用账号写入 Redis 后，已经签发的 JWT 也立即失效。
+        if (Boolean.TRUE.equals(stringRedisTemplate.hasKey(
+                AccountConstant.disabledUserKey(loginUser.userId())))) {
+            writeUnauthorized(response, "账号已停用");
             return;
         }
 

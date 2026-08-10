@@ -315,6 +315,11 @@ public class BookingServiceImpl implements BookingService {
         return bookingMapper.listTimeoutOrders(LocalDateTime.now());
     }
 
+    @Override
+    public int completePaidOrders(LocalDateTime now) {
+        return bookingMapper.completePaidOrders(now);
+    }
+
 
     /** 创建订单、明细快照并预占库存，任一步失败都回滚。 */
     @Override

@@ -16,7 +16,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.sql.SQLIntegrityConstraintViolationException;
+import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 
 @Slf4j
@@ -35,10 +36,11 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     @Override
     public PageResult<TicketType> pageQueryTicketType(TicketTypePageQueryDTO ticketTypePageQueryDTO) {
         //pageHelper
-        PageHelper.startPage(ticketTypePageQueryDTO.getPage(), ticketTypePageQueryDTO.getPageSize());
+        PageHelper.startPage(ticketTypePageQueryDTO.getPage(), ticketTypePageQueryDTO.getSize());
 
         //查询当前景点的数据
-        List<TicketType> ticketTypes = ticketTypeMapper.list(UserContext.getRequired().venueId());
+        List<TicketType> ticketTypes = ticketTypeMapper.list(
+                UserContext.getRequired().venueId(), ticketTypePageQueryDTO.getKeyword());
         Page<TicketType> page = (Page<TicketType>) ticketTypes;
 
         //打包返回
@@ -63,9 +65,16 @@ public class TicketTypeServiceImpl implements TicketTypeService {
      */
     @Override
     @RefreshCreateTimeOrUpdateTime(OperationType.INSERT)
-    public Integer createTicketType(TicketType ticketType) {
-        // 插入数据
+    public Integer createTicketType(TicketTypeUpdateDTO createDTO) {
+        TicketType ticketType = new TicketType();
         ticketType.setVenueId(UserContext.getRequired().venueId());
+        ticketType.setName(createDTO.getName().trim());
+        ticketType.setDescription(createDTO.getDescription());
+        ticketType.setAudienceRule(createDTO.getAudienceRule());
+        ticketType.setBasePrice(createDTO.getBasePrice());
+        ticketType.setStatus(createDTO.getStatus());
+        ticketType.setCreatedAt(LocalDateTime.now());
+        ticketType.setUpdatedAt(LocalDateTime.now());
         try {
             return ticketTypeMapper.insert(ticketType);
         } catch (DuplicateKeyException e) {
@@ -90,10 +99,16 @@ public class TicketTypeServiceImpl implements TicketTypeService {
     @Transactional
     @Override
     public void deleteBatch(List<Long> ids) {
+        if (new HashSet<>(ids).size() != ids.size()) {
+            throw new BusinessException(ErrorCode.INVALID_REQUEST, "票种ID不能重复");
+        }
+
         // 检查删除票种的venueId
         List<TicketType> ticketTypes = ticketTypeMapper.getTicketTypesByIds(ids);
-        if (ticketTypes.stream().anyMatch(ticketType -> !ticketType.getVenueId().equals(UserContext.getRequired().venueId()))) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
+        if (ticketTypes.size() != ids.size()
+                || ticketTypes.stream().anyMatch(ticketType ->
+                !ticketType.getVenueId().equals(UserContext.getRequired().venueId()))) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "一个或多个票种不存在");
         }
 
         // 检查删除票种的关联场次

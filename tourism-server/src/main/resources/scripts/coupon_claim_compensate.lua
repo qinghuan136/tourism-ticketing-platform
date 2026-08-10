@@ -1,4 +1,4 @@
--- Producer 发送失败时撤销 Redis 抢券资格。
+-- 消息发送失败或消费最终失败时，撤销 Redis 抢券资格。
 --
 -- KEYS[1] coupon:activity:{activityId}:user-request:{userId}
 -- KEYS[2] coupon:activity:{activityId}:stock

@@ -14,6 +14,8 @@ import com.qinghuan.pojo.vo.CouponActivityVO;
 import com.qinghuan.pojo.vo.PageResult;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 
@@ -21,9 +23,12 @@ import java.time.LocalDateTime;
 public class CouponActivityServiceImpl implements CouponActivityService {
 
     private final CouponMapper couponMapper;
+    private final CouponPreheatService preheatService;
 
-    public CouponActivityServiceImpl(CouponMapper couponMapper) {
+    public CouponActivityServiceImpl(CouponMapper couponMapper,
+                                     CouponPreheatService preheatService) {
         this.couponMapper = couponMapper;
+        this.preheatService = preheatService;
     }
 
     @Override
@@ -104,7 +109,15 @@ public class CouponActivityServiceImpl implements CouponActivityService {
         }
         updateStatus(activityId, activity.getStatus(), CouponActivityStatus.CANCELLED);
 
-        // 核心链路接入后，应在事务提交后删除或关闭该活动的 Redis 领取入口。
+        // 数据库取消成功后再关闭 Redis，避免事务回滚却提前清掉正常活动。
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        preheatService.disableActivityCache(activityId);
+                    }
+                }
+        );
     }
 
     @Override

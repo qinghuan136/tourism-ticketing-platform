@@ -40,4 +40,7 @@ public interface TicketService {
 
     /** 在票券仍有效且处于有效时间内时原子更新为已使用。 */
     int markUsed(Long ticketId, LocalDateTime verifiedAt);
+
+    /** 定时将超过有效期的未使用票券改为 EXPIRED。 */
+    int expireTickets(LocalDateTime now);
 }

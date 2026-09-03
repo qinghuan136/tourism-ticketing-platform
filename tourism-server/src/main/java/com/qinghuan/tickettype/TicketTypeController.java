@@ -8,7 +8,9 @@ import com.qinghuan.pojo.entity.TicketType;
 import com.qinghuan.pojo.enums.AccountRole;
 import com.qinghuan.pojo.vo.PageResult;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -21,7 +23,8 @@ import java.util.List;
 @Slf4j
 @RestController
 @Validated
-@Tag(name = "票种管理")
+@Tag(name = "票种管理", description = "运营者维护所属景点可复用的基础票种")
+@SecurityRequirement(name = "BearerAuth")
 public class TicketTypeController {
 
     private final TicketTypeService ticketTypeService;
@@ -37,7 +40,7 @@ public class TicketTypeController {
     @GetMapping("/operator/ticket-types")
     @Operation(summary = "分页查询票种")
     public ApiResponse<PageResult<TicketType>> pageQueryTicketType(
-            @Valid TicketTypePageQueryDTO ticketTypePageQueryDTO) {
+            @ParameterObject @Valid TicketTypePageQueryDTO ticketTypePageQueryDTO) {
         log.info("分页查询票种: {}", ticketTypePageQueryDTO);
         PageResult<TicketType> pageResult = ticketTypeService.pageQueryTicketType(ticketTypePageQueryDTO);
         return ApiResponse.success(pageResult);

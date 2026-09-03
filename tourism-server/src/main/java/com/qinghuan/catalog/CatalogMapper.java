@@ -13,8 +13,11 @@ import java.util.List;
 @Mapper
 public interface CatalogMapper {
 
-    /** 查询至少存在一个当前可售场次票种的景点。 */
-    List<CatalogVenueVO> listSellableVenues(CatalogVenuePageQueryDTO queryDTO);
+    /** 查询全部景点 ID，用于启动时构建布隆过滤器。 */
+    List<Long> listAllVenueIds();
+
+    /** 查询全部启用景点；当前可预约时才返回最低售价。 */
+    List<CatalogVenueVO> listEnabledVenues(CatalogVenuePageQueryDTO queryDTO);
 
     /** 只按启用状态查询景点，停用景点对游客视为不存在。 */
     CatalogVenueVO findEnabledVenue(Long venueId);

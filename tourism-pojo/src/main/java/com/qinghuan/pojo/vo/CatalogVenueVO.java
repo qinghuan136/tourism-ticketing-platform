@@ -16,6 +16,6 @@ public class CatalogVenueVO {
     private String description;
     private String coverUrl;
 
-    /** 当前可售场次票种的最低售价；详情查询不返回该字段。 */
+    /** 当前可售场次票种的最低售价；暂不可预约时为 null。 */
     private BigDecimal minimumPrice;
 }

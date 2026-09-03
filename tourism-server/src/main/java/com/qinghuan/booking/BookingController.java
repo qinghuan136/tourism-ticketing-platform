@@ -13,7 +13,9 @@ import com.qinghuan.pojo.vo.OrderDetailVO;
 import com.qinghuan.pojo.vo.OrderSummaryVO;
 import com.qinghuan.pojo.vo.PageResult;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @Validated
 @RestController
-@Tag(name = "Booking", description = "预约与订单接口")
+@Tag(name = "订单管理", description = "游客下单与订单生命周期、运营端订单查询")
+@SecurityRequirement(name = "BearerAuth")
 public class BookingController {
 
     private final BookingService bookingService;
@@ -42,7 +45,7 @@ public class BookingController {
     @PostMapping("/tourist/orders")
     @ResponseStatus(HttpStatus.CREATED)
     @RequireRole(AccountRole.TOURIST)
-    @Operation(summary = "创建订单")
+    @Operation(summary = "创建订单", description = "为一个或多个参观人预占指定场次票种库存；同一参观人在同一场次只能存在一笔有效订单")
     public ApiResponse<OrderCreatedVO> createOrder(
             @Valid @RequestBody OrderCreateDTO orderCreateDTO) {
         log.info("创建订单：{}", orderCreateDTO);
@@ -54,7 +57,7 @@ public class BookingController {
     @RequireRole(AccountRole.TOURIST)
     @Operation(summary = "分页查询我的订单")
     public ApiResponse<PageResult<OrderSummaryVO>> pageMyOrders(
-            @Valid OrderPageQueryDTO queryDTO) {
+            @ParameterObject @Valid OrderPageQueryDTO queryDTO) {
         return ApiResponse.success(bookingService.pageMyOrders(queryDTO));
     }
 
@@ -86,7 +89,7 @@ public class BookingController {
     @RequireRole({AccountRole.OPERATOR, AccountRole.STAFF})
     @Operation(summary = "运营端分页查询订单")
     public ApiResponse<PageResult<OrderSummaryVO>> pageVenueOrders(
-            @Valid VenueOrderPageQueryDTO queryDTO) {
+            @ParameterObject @Valid VenueOrderPageQueryDTO queryDTO) {
         return ApiResponse.success(bookingService.pageVenueOrders(queryDTO));
     }
 
@@ -104,7 +107,9 @@ public class BookingController {
      */
     @PostMapping("/tourist/orders/{orderId}/refund")
     @RequireRole(AccountRole.TOURIST)
-    @Operation(summary = "整单退款")
+    @Operation(
+            summary = "整单退款",
+            description = "接受退款申请并通过 REFUNDING 中间状态处理平台退款；超时结果由后台对账")
     public ApiResponse<Void> refundOrder(
             @PathVariable @Positive(message = "订单ID必须为正数") Long orderId) {
         bookingService.refundOrder(orderId);

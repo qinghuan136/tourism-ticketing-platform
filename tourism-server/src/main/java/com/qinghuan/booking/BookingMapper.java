@@ -59,8 +59,15 @@ public interface BookingMapper {
     int updatePaidOrder(@Param("order") BookingOrder order,
                         @Param("oldStatus") BookingOrderStatus oldStatus);
 
+    /** 第三方明确退款失败时，恢复已支付状态并清理本次退款单号。 */
+    int resetFailedRefund(@Param("orderId") Long orderId,
+                          @Param("newStatus") BookingOrderStatus newStatus);
+
     // 列出所有超时订单
     List<BookingOrder> listTimeoutOrders(LocalDateTime timeout);
+
+    /** 扫描超过等待时间仍未确认结果的退款订单。 */
+    List<BookingOrder> listRefundingOrders(LocalDateTime requestedBefore);
 
     /** 场次结束后将已支付订单收口为 COMPLETED。 */
     int completePaidOrders(@Param("now") LocalDateTime now);

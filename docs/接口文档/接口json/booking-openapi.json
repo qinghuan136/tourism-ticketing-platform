@@ -222,7 +222,7 @@
           "TouristOrder"
         ],
         "summary": "整单退款",
-        "description": "对尚未开始且不存在已核销票券的已支付订单执行即时整单退款。",
+      "description": "接受整单退款申请。订单先进入 REFUNDING 并冻结票券，平台确认成功后再进入 REFUNDED；超时结果由后台对账。",
         "operationId": "refundOrder",
         "parameters": [
           {
@@ -406,10 +406,11 @@
     "schemas": {
       "BookingOrderStatus": {
         "type": "string",
-        "description": "PENDING_PAYMENT 待支付，PAID 已支付，CANCELLED 用户取消，CLOSED 超时关闭，COMPLETED 已完成，REFUNDED 已退款",
+        "description": "PENDING_PAYMENT 待支付，PAID 已支付，REFUNDING 退款中，CANCELLED 用户取消，CLOSED 超时关闭，COMPLETED 已完成，REFUNDED 已退款",
         "enum": [
           "PENDING_PAYMENT",
           "PAID",
+          "REFUNDING",
           "CANCELLED",
           "CLOSED",
           "COMPLETED",
@@ -421,6 +422,7 @@
         "description": "电子票状态",
         "enum": [
           "VALID",
+          "REFUNDING",
           "USED",
           "VOID",
           "EXPIRED"
@@ -797,6 +799,10 @@
                 "type": "string",
                 "nullable": true
               },
+              "refundNo": {
+                "type": "string",
+                "nullable": true
+              },
               "paidAt": {
                 "type": "string",
                 "format": "date-time",
@@ -813,6 +819,11 @@
                 "nullable": true
               },
               "completedAt": {
+                "type": "string",
+                "format": "date-time",
+                "nullable": true
+              },
+              "refundRequestedAt": {
                 "type": "string",
                 "format": "date-time",
                 "nullable": true

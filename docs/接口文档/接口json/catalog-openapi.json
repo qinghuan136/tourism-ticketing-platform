@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "游客端可售内容查询接口",
-    "description": "游客查询当前可预约景点、附近景点、景点资料以及指定日期的可展示场次和票种。",
+    "description": "游客查询景点、附近景点、景点资料以及指定日期的可展示场次和票种。",
     "version": "1.1.0"
   },
   "tags": [
@@ -18,9 +18,9 @@
         "tags": [
           "Catalog"
         ],
-        "summary": "分页查询可预约景点",
-        "description": "查询至少存在一个当前可售场次和票种的启用景点，可按景点名称或地址搜索。",
-        "operationId": "pageSellableVenues",
+        "summary": "分页查询景点",
+        "description": "查询全部启用景点；没有当前可预约场次时 minimumPrice 为 null，可按景点名称或地址搜索。",
+        "operationId": "pageVenues",
         "parameters": [
           {
             "$ref": "#/components/parameters/Page"
@@ -385,7 +385,8 @@
             "type": "number",
             "format": "double",
             "minimum": 0,
-            "description": "当前可售场次票种的最低实际售价"
+            "nullable": true,
+            "description": "当前可售场次票种的最低实际售价；暂不可预约时为 null"
           }
         }
       },

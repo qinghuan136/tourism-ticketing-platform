@@ -15,6 +15,8 @@ public record CouponClaimCommand(
         LocalDateTime requestedAt,
         int schemaVersion) {
 
+    private static final String OUTBOX_SEPARATOR = "|";
+
     /** 当前消息结构版本。 */
     public static final int CURRENT_SCHEMA_VERSION = 1;
 
@@ -32,6 +34,30 @@ public record CouponClaimCommand(
                 userId,
                 requestedAt,
                 CURRENT_SCHEMA_VERSION
+        );
+    }
+
+    /** 转换成 Redis ZSet member，供宕机后的补发任务重建消息。 */
+    public String toOutboxValue() {
+        return String.join(
+                OUTBOX_SEPARATOR,
+                requestId,
+                activityId.toString(),
+                userId.toString(),
+                requestedAt.toString(),
+                String.valueOf(schemaVersion)
+        );
+    }
+
+    /** 从 Redis Outbox 记录恢复 Kafka 消息。 */
+    public static CouponClaimCommand fromOutboxValue(String value) {
+        String[] parts = value.split("\\|", -1);
+        return new CouponClaimCommand(
+                parts[0],
+                Long.valueOf(parts[1]),
+                Long.valueOf(parts[2]),
+                LocalDateTime.parse(parts[3]),
+                Integer.parseInt(parts[4])
         );
     }
 }

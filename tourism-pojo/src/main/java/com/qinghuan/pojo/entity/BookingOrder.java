@@ -25,10 +25,13 @@ public class BookingOrder extends BaseEntity {
     private BigDecimal totalAmount;
     private BookingOrderStatus status;
     private String paymentNo;
+    /** 同一次退款查询和重试始终使用同一个单号。 */
+    private String refundNo;
     private LocalDateTime expireAt;
     private LocalDateTime paidAt;
     private LocalDateTime cancelledAt;
     private LocalDateTime closedAt;
     private LocalDateTime completedAt;
+    private LocalDateTime refundRequestedAt;
     private LocalDateTime refundAt;
 }

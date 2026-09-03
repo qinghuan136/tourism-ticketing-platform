@@ -22,6 +22,16 @@ public interface TicketMapper {
     /** 批量修改票券 */
     Integer updateTickets(@Param("tickets") List<Ticket> tickets);
 
+    /** 退款请求落库时冻结未核销票券。 */
+    int markRefundingByOrderId(Long orderId);
+
+    /** 第三方退款成功后将冻结票券正式作废。 */
+    int voidRefundingByOrderId(Long orderId);
+
+    /** 第三方明确失败时解冻票券，已过期票券直接记为 EXPIRED。 */
+    int restoreRefundingByOrderId(@Param("orderId") Long orderId,
+                                  @Param("now") LocalDateTime now);
+
     /** 按当前游客和状态查询电子票，供 PageHelper 分页。 */
     List<TicketVO> listMyTickets(@Param("userId") Long userId,
                                  @Param("query") TicketPageQueryDTO queryDTO);

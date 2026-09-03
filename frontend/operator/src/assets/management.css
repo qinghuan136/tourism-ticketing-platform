@@ -1,0 +1,146 @@
+.management-page {
+  --brand: #e99000;
+  --el-color-primary: var(--brand);
+  min-width: 0;
+  color: #202733;
+}
+
+.management-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.management-heading h1 {
+  margin: 0 0 8px;
+  font-size: 27px;
+}
+
+.management-heading p {
+  margin: 0;
+  font-size: 14px;
+  color: #75808e;
+}
+
+.management-filter {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 9px;
+}
+
+.management-filter__field {
+  display: grid;
+  gap: 8px;
+  min-width: 220px;
+}
+
+.management-filter__field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a5360;
+}
+
+.management-filter__actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.management-table {
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #dfe3e8;
+  border-radius: 9px;
+}
+
+.management-table .el-table__header-wrapper th.el-table__cell {
+  height: 54px;
+  padding: 0;
+  color: #313944;
+  background: #fafbfc;
+}
+
+.management-table .el-table__body td.el-table__cell {
+  height: 52px;
+  padding: 0;
+}
+
+.management-table .el-table__inner-wrapper::before {
+  display: none;
+}
+
+.management-table__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 20px;
+  border-top: 1px solid #ebeef2;
+}
+
+.management-table__footer > span {
+  font-size: 13px;
+  color: #5f6975;
+}
+
+.management-dialog {
+  --el-color-primary: #e99000;
+  max-width: calc(100vw - 32px);
+  border-radius: 10px;
+}
+
+.management-dialog .el-dialog__body {
+  padding: 22px 24px 8px;
+}
+
+.management-dialog .el-form-item__label {
+  padding-bottom: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3f4855;
+}
+
+.management-dialog .el-input__wrapper,
+.management-dialog .el-select__wrapper {
+  min-height: 40px;
+}
+
+@media (max-width: 680px) {
+  .management-heading {
+    gap: 14px;
+    align-items: center;
+  }
+
+  .management-heading h1 {
+    font-size: 24px;
+  }
+
+  .management-filter {
+    flex-wrap: wrap;
+    padding: 18px 16px;
+  }
+
+  .management-filter__field,
+  .management-filter__actions {
+    width: 100%;
+  }
+
+  .management-filter__actions {
+    justify-content: flex-end;
+    margin-left: 0;
+  }
+
+  .management-table {
+    overflow-x: auto;
+  }
+
+  .management-table__footer {
+    min-width: 600px;
+  }
+}

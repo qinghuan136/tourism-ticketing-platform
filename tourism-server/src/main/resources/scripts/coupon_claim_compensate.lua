@@ -1,13 +1,18 @@
--- 消息发送失败或消费最终失败时，撤销 Redis 抢券资格。
+-- 消费最终失败时，撤销 Redis 抢券资格。
 --
 -- KEYS[1] coupon:activity:{activityId}:user-request:{userId}
 -- KEYS[2] coupon:activity:{activityId}:stock
 -- KEYS[3] coupon:activity:{activityId}:claimed-users
+-- KEYS[4] coupon:activity:{activityId}:claim-outbox
 --
 -- ARGV[1] requestId
 -- ARGV[2] userId
+-- ARGV[3] Outbox member
 
 local currentRequestId = redis.call('GET', KEYS[1])
+
+-- 当前消息已经进入终态失败，先移除它自己的 Outbox，避免再次补发。
+redis.call('ZREM', KEYS[4], ARGV[3])
 
 -- 只有当前占位仍然属于本次请求时才能补偿。
 --

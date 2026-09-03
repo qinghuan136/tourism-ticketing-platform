@@ -19,6 +19,10 @@ public final class CouponConstant {
     /** 抢券结果默认保留七天。 */
     public static final long CLAIM_RESULT_TTL_SECONDS = 7 * 24 * 60 * 60L;
 
+    /** 定时补发任务用于发现各活动 Outbox 的非阻塞扫描模式。 */
+    public static final String CLAIM_OUTBOX_KEY_PATTERN =
+            "coupon:activity:*:claim-outbox";
+
     /** 活动元数据 Hash 中的字段名。 */
     public static final String META_FIELD_STATUS = "status";
     public static final String META_FIELD_CLAIM_START_AT = "claimStartAt";
@@ -60,6 +64,11 @@ public final class CouponConstant {
     /** 同一游客在当前活动中对应的 requestId。 */
     public static String userRequestKey(Long activityId, Long userId) {
         return activityPrefix(activityId) + "user-request:" + userId;
+    }
+
+    /** 已通过 Lua 取得资格、但尚未确认写入 Kafka 的请求。 */
+    public static String claimOutboxKey(Long activityId) {
+        return activityPrefix(activityId) + "claim-outbox";
     }
 
     /** 抢券请求的快速查询结果，例如 PENDING、SUCCESS、FAILED。 */

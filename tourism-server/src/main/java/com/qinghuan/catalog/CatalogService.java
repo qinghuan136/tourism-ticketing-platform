@@ -13,8 +13,8 @@ import java.util.List;
 
 public interface CatalogService {
 
-    /** 分页查询当前存在可售内容的启用景点。 */
-    PageResult<CatalogVenueVO> pageSellableVenues(CatalogVenuePageQueryDTO queryDTO);
+    /** 分页查询全部启用景点。 */
+    PageResult<CatalogVenueVO> pageVenues(CatalogVenuePageQueryDTO queryDTO);
 
     /** 获取启用景点的游客端展示资料。 */
     CatalogVenueVO getVenue(Long venueId);

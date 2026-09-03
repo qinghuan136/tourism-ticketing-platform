@@ -58,6 +58,9 @@ public class CouponKafkaConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         configurer.configure(factory, consumerFactory);
 
+        // 主 Topic 有 3 个分区，启动 3 个消费线程并行处理不同分区的抢券消息。
+        factory.setConcurrency(3);
+
         DeadLetterPublishingRecoverer recoverer =
                 new DeadLetterPublishingRecoverer(
                         kafkaTemplate,

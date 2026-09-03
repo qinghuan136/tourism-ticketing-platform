@@ -2,86 +2,84 @@
 
 ## Project
 
-This repository is a modular monolith for a tourism ticketing platform built with Java 17, Spring Boot, Maven, MyBatis, and MySQL.
+This repository is a full-stack tourism ticketing platform:
 
-Priorities:
+- Backend: Java 17, Spring Boot, Maven, MyBatis, MySQL, Redis, Kafka, and Flyway.
+- Frontend: two independent Vue 3 + TypeScript + Vite applications for tourists and operators.
 
-- Preserve business correctness, data consistency, and readability.
-- Read relevant files under `docs/` before implementation.
-- If code and documentation conflict, report the conflict instead of guessing.
-- Make only the changes required for the current task.
+Preserve business correctness, data consistency, API compatibility, and readability. Read the nearest `AGENTS.md` and relevant files under `docs/` before editing. If code and documentation conflict, report the conflict instead of guessing.
 
-## Repository Layout
+## Repository Map
 
 ```text
 tourism-ticketing-platform/
-├── pom.xml
-├── docs/
-├── tourism-common/    # Shared responses, exceptions, constants, utilities
-├── tourism-pojo/      # Entities, DTOs, VOs, enums
-└── tourism-server/    # Spring Boot application and business logic
+├── tourism-common/       # Shared backend responses, exceptions, constants, utilities
+├── tourism-pojo/         # Backend entities, DTOs, VOs, enums
+├── tourism-server/       # Spring Boot application and business logic
+├── frontend/
+│   ├── tourist/          # Visitor-facing Vue application
+│   ├── operator/         # Operator/admin Vue application
+│   └── AGENTS.md         # Frontend-specific rules
+├── docs/                 # Requirements, API contracts, database design, prototypes
+└── tests/                # Cross-cutting and performance tests
 ```
 
-Business packages in `tourism-server` include:
+Instructions closer to the edited file take precedence. All work under `frontend/` must also follow `frontend/AGENTS.md`.
 
-`auth`, `venue`, `session`, `tickettype`, `visitor`, `booking`, `ticket`, and `verification`.
+## Working Rules
 
-Organize each package with `controller`, `service`, and `mapper` only when needed.
-
-## Architecture Rules
-
-- Controllers handle HTTP concerns, validation, and Service calls only.
-- Services own business workflows and transactions.
-- Mappers handle database access only.
-- Modules collaborate through Services, never through another module's Mapper.
-- Do not expose Entities directly through APIs; use DTOs for requests and VOs for responses.
-- Every database schema change requires a new Flyway migration.
-- Never edit or delete an applied versioned migration.
-
-## Coding Rules
-
-- Use constructor injection; do not use field injection.
-- Use Jakarta Validation for request validation.
-- Use centralized exception handling and consistent API responses.
-- Use `BigDecimal` for money.
-- Use `LocalDate`, `LocalTime`, and `LocalDateTime` for date/time values.
-- Use enums or centralized constants for statuses; avoid magic strings and numbers.
-- Keep methods focused and comment business reasons, not obvious code behavior.
-
-## Editing and Testing
-
-Before editing, inspect relevant code, tests, `pom.xml`, and documentation.
-
-- Avoid unrelated refactoring, deletion, or formatting.
-- Do not change existing APIs, schemas, statuses, or module boundaries without explaining the impact.
-- Add or update tests for behavior changes.
-- Update documentation for user-visible changes.
+- Inspect related code, tests, manifests, and documentation before editing.
+- Make only task-scoped changes; avoid unrelated refactors, formatting, or dependency additions.
 - Do not create branches, commit, or push unless explicitly requested.
-- Never claim tests passed if they were not run.
+- Add or update tests for behavior changes and documentation for user-visible changes.
+- Never claim a command or test passed unless it was actually run.
+- Never commit credentials, tokens, private keys, production secrets, or privileged server configuration.
 
-Run from the repository root:
+## Backend Boundaries
 
-```bash
-./mvnw clean test
-./mvnw -pl tourism-server -am test
-./mvnw -pl tourism-server -am spring-boot:run
+- Controllers handle HTTP concerns and validation; Services own workflows and transactions; Mappers handle database access.
+- Business domains collaborate through Services, never through another domain's Mapper.
+- Use DTOs for requests and VOs for responses; do not expose Entities through APIs.
+- Use constructor injection, Jakarta Validation, centralized error handling, `BigDecimal` for money, and `java.time` types for dates and times.
+- Use enums or centralized constants for statuses; avoid magic strings and numbers.
+- Every schema change requires a new Flyway migration. Never edit or delete an applied versioned migration.
+
+## Frontend and API Boundaries
+
+- The backend implementation and API documentation are the source of truth for endpoints, payloads, enums, pagination, authentication, and errors.
+- Do not invent frontend-only API fields or silently work around backend contract mismatches. Report the mismatch and update both sides only when the task authorizes it.
+- Keep `frontend/tourist` and `frontend/operator` independently buildable; do not import source files between them.
+- Follow `frontend/AGENTS.md` for Vue architecture, UI conventions, API wrappers, state management, and browser validation.
+
+## Validation Commands
+
+Use the narrowest relevant checks. On Windows, run Maven through `mvnw.cmd` from the repository root.
+
+```powershell
+# Backend module and dependencies
+.\mvnw.cmd -pl tourism-server -am test
+
+# Full backend suite
+.\mvnw.cmd clean test
+
+# One frontend application
+cd frontend\tourist   # or frontend\operator
+npm run type-check
+npm run build
 ```
 
-Use `mvnw.cmd` on Windows, or `mvn` if the wrapper is unavailable.
+For frontend integration work, also verify the rendered flow, browser Console, and Network requests. Check each app's `package.json` before assuming any other script exists.
 
-After completing a task, report:
+## Task Handoff
 
-- changed files;
-- key design decisions;
-- tests executed;
-- remaining risks or unverified items.
+Report changed files, key design decisions, checks executed, and remaining risks or unverified behavior.
 
 ## Optional Skills
 
-Load a skill only when the task matches and the file exists:
+Use only skills relevant to the task and available in the current environment:
 
 - Spring Boot: `tourism-server/.agents/skills/java-springboot/SKILL.md`
-- JUnit/testing: `tourism-server/.agents/skills/java-junit/SKILL.md`
-- Build/testing: `.agents/skills/building-and-testing/SKILL.md`
-
-If no relevant skill exists, follow this file, project documentation, and existing code patterns.
+- JUnit: `tourism-server/.agents/skills/java-junit/SKILL.md`
+- Maven build/testing: `.agents/skills/building-and-testing/SKILL.md`
+- Frontend implementation: `build-web-apps:frontend-app-builder`
+- Frontend browser testing: `build-web-apps:frontend-testing-debugging`

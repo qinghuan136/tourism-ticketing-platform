@@ -5,9 +5,6 @@ package com.qinghuan.pojo.enums;
  */
 public enum CouponClaimFailureReason {
 
-    /** Lua 已经预扣，但消息最终未能发送到 Kafka。 */
-    MESSAGE_SEND_FAILED,
-
     /** 消费多次重试后仍未能完成数据库处理。 */
     MESSAGE_CONSUME_FAILED,
 

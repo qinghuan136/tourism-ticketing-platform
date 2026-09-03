@@ -12,7 +12,9 @@ import com.qinghuan.pojo.enums.AccountStatus;
 import com.qinghuan.pojo.vo.PageResult;
 import com.qinghuan.pojo.vo.UserAccountVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.beans.BeanUtils;
@@ -21,7 +23,8 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Validated
-@Tag(name = "UserController", description = "用户管理")
+@Tag(name = "工作人员管理", description = "运营者维护所属景点的工作人员账号")
+@SecurityRequirement(name = "BearerAuth")
 public class UserController {
 
     private final UserService userService;
@@ -49,7 +52,7 @@ public class UserController {
     @GetMapping("/operator/staff/page")
     @Operation(summary = "获取工作人员账号分页")
     public ApiResponse<PageResult<UserAccountVO>> StaffAccountPageQuery(
-            @Valid UserAccountPageQueryDTO userAccountPageQueryDTO) {
+            @ParameterObject @Valid UserAccountPageQueryDTO userAccountPageQueryDTO) {
         PageResult<UserAccountVO> pageResult = userService.StaffAccountPageQuery(userAccountPageQueryDTO);
         return ApiResponse.success(pageResult);
     }

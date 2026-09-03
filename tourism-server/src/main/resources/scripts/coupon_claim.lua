@@ -3,10 +3,12 @@
 -- KEYS[3] coupon:activity:{activityId}:stock
 -- KEYS[4] coupon:activity:{activityId}:claimed-users
 -- KEYS[5] coupon:activity:{activityId}:user-request:{userId}
+-- KEYS[6] coupon:activity:{activityId}:claim-outbox
 --
 -- ARGV[1] userId
 -- ARGV[2] requestId
 -- ARGV[3] nowEpochMillis
+-- ARGV[4] 可重建 CouponClaimCommand 的 Outbox 内容
 
 -- 重复请求优先返回原 requestId。
 -- 即使用户因为网络问题重复点击，也不会再次扣减库存。
@@ -60,9 +62,14 @@ redis.call('DECR', KEYS[3])
 redis.call('SADD', KEYS[4], ARGV[1])
 redis.call('SET', KEYS[5], ARGV[2])
 
+-- 先把待发送消息与资格、库存一起原子登记。
+-- 即使应用在调用 Kafka 前宕机，定时任务也能从这里恢复消息。
+redis.call('ZADD', KEYS[6], now, ARGV[4])
+
 -- 防重数据与活动缓存保持相同的过期时间。
 local activityTtl = redis.call('PTTL', KEYS[1])
 redis.call('PEXPIRE', KEYS[4], activityTtl)
 redis.call('PEXPIRE', KEYS[5], activityTtl)
+redis.call('PEXPIRE', KEYS[6], activityTtl)
 
 return 0

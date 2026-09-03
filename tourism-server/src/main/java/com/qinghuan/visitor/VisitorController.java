@@ -9,6 +9,7 @@ import com.qinghuan.pojo.enums.AccountRole;
 import com.qinghuan.pojo.enums.VisitorStatus;
 import com.qinghuan.pojo.vo.VisitorVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
@@ -30,7 +31,8 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/tourist/visitors")
-@Tag(name = "参观人管理")
+@Tag(name = "参观人管理", description = "游客维护本人常用参观人")
+@SecurityRequirement(name = "BearerAuth")
 public class VisitorController {
 
     private final VisitorService visitorService;
@@ -89,4 +91,3 @@ public class VisitorController {
         return ApiResponse.success();
     }
 }
-

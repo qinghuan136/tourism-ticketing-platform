@@ -204,6 +204,7 @@
         "type": "string",
         "enum": [
           "VALID",
+          "REFUNDING",
           "USED",
           "VOID",
           "EXPIRED"

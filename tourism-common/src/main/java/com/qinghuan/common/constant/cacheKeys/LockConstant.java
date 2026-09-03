@@ -1,6 +1,10 @@
 package com.qinghuan.common.constant.cacheKeys;
 
 public class LockConstant {
+    /** Redis 缓存未命中时的缓存重建锁前缀。 */
+    public static final String LOCK_CACHE_REBUILD_PREFIX =
+            "lock:cache:rebuild:";
+
     // 订单业务相关锁前缀
     public static final String LOCK_BOOKING_PREFIX = "lock:booking:";
 
@@ -12,4 +16,8 @@ public class LockConstant {
      */
     public static final String LOCK_COUPON_PREHEAT_PREFIX =
             "lock:coupon:preheat:";
+
+    /** 退款对账任务的订单级锁，避免多实例重复请求退款平台。 */
+    public static final String LOCK_REFUND_RECONCILE_PREFIX =
+            "lock:refund:reconcile:";
 }

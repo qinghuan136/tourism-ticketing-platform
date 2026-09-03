@@ -53,6 +53,37 @@
             #{ticket.orderItemId}
         </foreach>
     </update>
+
+    <!-- 冻结票券后，核销的 VALID -> USED 条件更新会自然失败。 -->
+    <update id="markRefundingByOrderId">
+        update ticket
+        set status = 'REFUNDING',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'VALID'
+          and order_item_id in (
+              select id from booking_order_item where order_id = #{orderId}
+          )
+    </update>
+
+    <update id="voidRefundingByOrderId">
+        update ticket
+        set status = 'VOID',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'REFUNDING'
+          and order_item_id in (
+              select id from booking_order_item where order_id = #{orderId}
+          )
+    </update>
+
+    <update id="restoreRefundingByOrderId">
+        update ticket
+        set status = case when valid_until &gt; #{now} then 'VALID' else 'EXPIRED' end,
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'REFUNDING'
+          and order_item_id in (
+              select id from booking_order_item where order_id = #{orderId}
+          )
+    </update>
     <select id="listTicketsByOrderId" resultMap="ticketResultMap">
         select id, ticket_code, order_item_id, status, valid_from, valid_until,
                verified_at, created_at, updated_at

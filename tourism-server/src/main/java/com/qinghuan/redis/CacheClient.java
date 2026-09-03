@@ -4,8 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.qinghuan.common.RedisData;
 import com.qinghuan.common.constant.RedisConstants;
-import org.flywaydb.core.internal.util.JsonUtils;
-import org.springframework.data.redis.core.RedisTemplate;
+import com.qinghuan.common.constant.cacheKeys.LockConstant;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
@@ -22,6 +23,7 @@ import java.util.function.Function;
 @Component
 public class CacheClient {
     private final StringRedisTemplate stringRedisTemplate;
+    private final RedissonClient redissonClient;
     // 线程池
     ThreadPoolExecutor pool = new ThreadPoolExecutor(
             2,
@@ -40,8 +42,10 @@ public class CacheClient {
                     "    return 0 " +
                     "end";
 
-    public CacheClient(StringRedisTemplate stringRedisTemplate) {
+    public CacheClient(StringRedisTemplate stringRedisTemplate,
+                       RedissonClient redissonClient) {
         this.stringRedisTemplate = stringRedisTemplate;
+        this.redissonClient = redissonClient;
     }
 
     /*
@@ -62,37 +66,53 @@ public class CacheClient {
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(redisData));
     }
 
-    /*
-     * 查询（防缓存穿透）
+    /**
+     * 查询缓存，并在 Redis 未命中时通过分布式锁限制跨实例并发回源。
+     * 空值缓存用于防止不存在的数据反复访问数据库。
      */
     public <R, ID> R queryWithPassThrough(String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback,
                                           Long timeout, TimeUnit timeUnit) {
         String key = keyPrefix + id;
-        // 1.查询缓存
         String valueJson = stringRedisTemplate.opsForValue().get(key);
 
-        // 2.命中，且不为空串，直接返回
+        // Redis 命中时直接返回；空字符串表示数据库中不存在该数据。
         if (StrUtil.isNotBlank(valueJson)) {
             return JSONUtil.toBean(valueJson, type);
         }
-
-        // 3.为空串，说明数据库不存在该key，返回null
         if (valueJson != null) {
             return null;
         }
 
-        // 4.未命中，查询数据库
-        R r = dbFallback.apply(id);
+        RLock lock = redissonClient.getLock(
+                LockConstant.LOCK_CACHE_REBUILD_PREFIX + key);
+        lock.lock();
+        try {
+            /*
+             * 获取锁后再次检查 Redis。等待锁期间，其他实例可能已经完成重建，
+             * 此时直接使用新缓存，避免重复查询数据库。
+             */
+            valueJson = stringRedisTemplate.opsForValue().get(key);
+            if (StrUtil.isNotBlank(valueJson)) {
+                return JSONUtil.toBean(valueJson, type);
+            }
+            if (valueJson != null) {
+                return null;
+            }
 
-        // 5.数据库不存在，新增空串缓存，返回null
-        if (r == null) {
-            stringRedisTemplate.opsForValue().set(key, "", RedisConstants.CACHE_NULL_TTL, TimeUnit.SECONDS);
-            return null;
+            R result = dbFallback.apply(id);
+            if (result == null) {
+                stringRedisTemplate.opsForValue().set(
+                        key, "", RedisConstants.CACHE_NULL_TTL, TimeUnit.SECONDS);
+                return null;
+            }
+
+            this.set(key, result, timeout, timeUnit);
+            return result;
+        } finally {
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
         }
-
-        // 6.数据库存在，新增缓存，返回数据
-        this.set(key, r, timeout, timeUnit);
-        return r;
     }
 
     /*

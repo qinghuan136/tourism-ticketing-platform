@@ -9,7 +9,9 @@ import com.qinghuan.pojo.enums.AccountRole;
 import com.qinghuan.pojo.vo.PageResult;
 import com.qinghuan.pojo.vo.SessionVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import lombok.extern.slf4j.Slf4j;
@@ -29,7 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Validated
 @RestController
 @RequestMapping("/operator/sessions")
-@Tag(name = "场次管理")
+@Tag(name = "场次管理", description = "运营者维护场次、票种配额并通过事件驱动状态流转")
+@SecurityRequirement(name = "BearerAuth")
 public class SessionController {
 
     private final SessionService sessionService;
@@ -45,7 +48,7 @@ public class SessionController {
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "分页查询场次")
     public ApiResponse<PageResult<SessionVO>> pageSessions(
-            @Valid SessionPageQueryDTO queryDTO) {
+            @ParameterObject @Valid SessionPageQueryDTO queryDTO) {
         return ApiResponse.success(sessionService.pageSessions(queryDTO));
     }
 

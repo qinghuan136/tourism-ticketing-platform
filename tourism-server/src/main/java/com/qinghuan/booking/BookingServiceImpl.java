@@ -4,6 +4,9 @@ import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import com.qinghuan.annotation.RefreshCreateTimeOrUpdateTime;
 import com.qinghuan.auth.context.UserContext;
+import com.qinghuan.booking.refund.RefundGateway;
+import com.qinghuan.booking.refund.RefundGatewayResult;
+import com.qinghuan.booking.refund.RefundRequest;
 import com.qinghuan.common.exception.BusinessException;
 import com.qinghuan.common.exception.ErrorCode;
 import com.qinghuan.coupon.CouponDiscount;
@@ -53,6 +56,7 @@ public class BookingServiceImpl implements BookingService {
     private final TicketService ticketService;
     private final SessionService sessionService;
     private final CouponOrderService couponOrderService;
+    private final RefundGateway refundGateway;
     private final RedissonClient redisson;
     private final TransactionTemplate transactionTemplate;
 
@@ -61,6 +65,7 @@ public class BookingServiceImpl implements BookingService {
                               SessionInventoryService sessionInventoryService,
                               TicketService ticketService, SessionService sessionService,
                               CouponOrderService couponOrderService,
+                              RefundGateway refundGateway,
                               RedissonClient redisson, TransactionTemplate transactionTemplate) {
         this.bookingMapper = bookingMapper;
         this.visitorService = visitorService;
@@ -68,6 +73,7 @@ public class BookingServiceImpl implements BookingService {
         this.ticketService = ticketService;
         this.sessionService = sessionService;
         this.couponOrderService = couponOrderService;
+        this.refundGateway = refundGateway;
         this.redisson = redisson;
         this.transactionTemplate = transactionTemplate;
     }
@@ -177,76 +183,175 @@ public class BookingServiceImpl implements BookingService {
         couponOrderService.releaseLocked(order.getUserCouponId(), closedAt);
     }
 
-    /** 整单退款 */
+    /**
+     * 整单退款分成两个本地事务，第三方请求在两个事务之间执行。
+     * 这样既不长时间占用数据库锁，也能保留已发起退款的意图。
+     */
     @Override
-    @Transactional
     public void refundOrder(Long orderId) {
-        // 获取当前订单
+        Long userId = UserContext.getRequired().userId();
+        RefundPreparation preparation = transactionTemplate.execute(
+                status -> prepareRefund(orderId, userId));
+        if (preparation.alreadyCompleted()) {
+            return;
+        }
+        processRefund(preparation.request(), preparation.newRequest());
+    }
+
+    /** 第一段事务：保存退款意图、固定 refundNo，并冻结票券。 */
+    private RefundPreparation prepareRefund(Long orderId, Long userId) {
         BookingOrder order = bookingMapper.findOrderByOrderId(orderId);
         if (order == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "订单不存在");
         }
-        // 判断所属游客账号是否合法
-        if (!order.getUserId().equals(UserContext.getRequired().userId())) {
-            throw new BusinessException(
-                    ErrorCode.FORBIDDEN, "无权访问该订单");
+        if (!order.getUserId().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该订单");
         }
-        // 状态转换
+        if (order.getStatus() == BookingOrderStatus.REFUNDED) {
+            return RefundPreparation.done();
+        }
+        if (order.getStatus() == BookingOrderStatus.REFUNDING) {
+            return RefundPreparation.pending(toRefundRequest(order), false);
+        }
+
         BookingOrderStatus oldStatus = order.getStatus();
-        BookingOrderStatus newStatus;
         try {
-            newStatus = oldStatus.next(BookingOrderEvent.REFUND_SUCCESS);
+            order.setStatus(oldStatus.next(BookingOrderEvent.REFUND_REQUESTED));
         } catch (IllegalStateException exception) {
             throw new BusinessException(ErrorCode.CONFLICT, "只有已支付订单可以退款");
         }
-        // 业务validate检查
-        // 场次必须尚未开始
-        LocalDateTime sessionStartTime = sessionService.getSessionStartTime(order.getSessionId());
-        if (!LocalDateTime.now().isBefore(sessionStartTime)) {
-            throw new BusinessException(
-                    ErrorCode.CONFLICT, "场次已开始，不能进行整单退款");
-        }
-        // 获取订单对应的票券
-        List<Ticket> tickets = ticketService.listTicketsByOrderId(orderId);
-        if (tickets.stream().anyMatch(ticket -> ticket.getStatus() == TicketStatus.USED)) {
-            throw new BusinessException(
-                    ErrorCode.CONFLICT, "订单内已使用的票券不能进行整单退款");
+
+        LocalDateTime now = LocalDateTime.now();
+        if (!now.isBefore(sessionService.getSessionStartTime(order.getSessionId()))) {
+            throw new BusinessException(ErrorCode.CONFLICT, "场次已开始，不能进行整单退款");
         }
 
-        // 创建更新订单信息
-        // 按订单明细汇总每种场次票的数量，退款完成后按原数量归还库存。
+        List<Ticket> tickets = ticketService.listTicketsByOrderId(orderId);
+        if (tickets.stream().anyMatch(ticket -> ticket.getStatus() != TicketStatus.VALID)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "订单票券当前不可退款");
+        }
+
+        order.setRefundNo("RF" + UUID.randomUUID().toString().replace("-", ""));
+        order.setRefundRequestedAt(now);
+        if (bookingMapper.updateOrder(order, oldStatus) == 0) {
+            throw new BusinessException(ErrorCode.CONFLICT, "订单状态发生变化");
+        }
+
+        // 冻结票券后，并发核销的 VALID -> USED 更新会失败。
+        if (ticketService.markRefunding(orderId) != tickets.size()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "票券状态发生变化，退款失败");
+        }
+        return RefundPreparation.pending(toRefundRequest(order), true);
+    }
+
+    /** 事务外请求或查询退款平台，超时时保持 REFUNDING 等待定时对账。 */
+    private void processRefund(RefundRequest request, boolean newRequest) {
+        RefundGatewayResult result;
+        try {
+            result = newRequest
+                    ? refundGateway.requestRefund(request)
+                    : refundGateway.queryRefund(request.refundNo());
+            // 第一段事务提交后、调用平台前宕机，重启后使用原 refundNo 补发。
+            if (!newRequest && result == RefundGatewayResult.NOT_FOUND) {
+                result = refundGateway.requestRefund(request);
+            }
+        } catch (RuntimeException exception) {
+            log.warn("退款平台结果暂时无法确认，订单保持 REFUNDING，refundNo={}",
+                    request.refundNo(), exception);
+            return;
+        }
+
+        if (result == RefundGatewayResult.SUCCESS) {
+            transactionTemplate.execute(status -> {
+                completeRefund(request.orderId());
+                return null;
+            });
+        } else if (result == RefundGatewayResult.FAILED) {
+            transactionTemplate.execute(status -> {
+                failRefund(request.orderId());
+                return null;
+            });
+        }
+    }
+
+    /** 第二段事务：确认到账后统一完成订单、票券、库存和优惠券收尾。 */
+    private void completeRefund(Long orderId) {
+        BookingOrder order = bookingMapper.findOrderByOrderId(orderId);
+        if (order.getStatus() == BookingOrderStatus.REFUNDED) {
+            return;
+        }
+        if (order.getStatus() != BookingOrderStatus.REFUNDING) {
+            throw new BusinessException(ErrorCode.CONFLICT, "订单不在退款中");
+        }
+
+        List<Ticket> tickets = ticketService.listTicketsByOrderId(orderId);
+        if (tickets.stream().anyMatch(ticket -> ticket.getStatus() != TicketStatus.REFUNDING)) {
+            throw new BusinessException(ErrorCode.CONFLICT, "退款票券状态发生变化");
+        }
         Map<Long, Integer> ticketTypeQuantities = bookingMapper.listOrderItems(orderId).stream()
                 .collect(Collectors.groupingBy(
                         OrderItemVO::getSessionTicketTypeId,
                         Collectors.summingInt(item -> 1)));
 
+        BookingOrderStatus oldStatus = order.getStatus();
+        order.setStatus(oldStatus.next(BookingOrderEvent.REFUND_SUCCESS));
         order.setRefundAt(LocalDateTime.now());
-        order.setStatus(newStatus);
-        Integer okNumber = bookingMapper.updateOrder(order, oldStatus);
-
-        if (okNumber == 0) {
-            throw new BusinessException(
-                    ErrorCode.CONFLICT, "订单状态发生变化");
+        if (bookingMapper.updateOrder(order, oldStatus) == 0) {
+            return;
+        }
+        if (ticketService.completeRefund(orderId) != tickets.size()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "退款票券状态发生变化");
         }
 
-        // 修改属于当前订单的有效票券状态为 VOID。
-        List<Ticket> validTickets = tickets.stream()
-                .filter(ticket -> ticket.getStatus() == TicketStatus.VALID)
-                .toList();
-        validTickets.forEach(ticket -> ticket.setStatus(TicketStatus.VOID));
-        if (!validTickets.isEmpty()
-                && ticketService.updateTickets(validTickets) != validTickets.size()) {
-            // 如果票券在退款过程中被并发核销，则回滚整笔退款。
-            throw new BusinessException(ErrorCode.CONFLICT, "票券状态发生变化，退款失败");
-        }
-
-
-        // 释放库存
         sessionInventoryService.releaseInventory(order.getSessionId(), ticketTypeQuantities);
-
-        // 整单退款后返还优惠券；若此时已过有效期则直接记为 EXPIRED。
         couponOrderService.restoreAfterRefund(order.getUserCouponId(), order.getRefundAt());
+    }
 
+    /** 第三方明确拒绝退款时恢复订单和票券，不归还库存。 */
+    private void failRefund(Long orderId) {
+        BookingOrder order = bookingMapper.findOrderByOrderId(orderId);
+        if (order.getStatus() != BookingOrderStatus.REFUNDING) {
+            return;
+        }
+        List<Ticket> tickets = ticketService.listTicketsByOrderId(orderId);
+        BookingOrderStatus paidStatus = order.getStatus().next(BookingOrderEvent.REFUND_FAILED);
+        if (bookingMapper.resetFailedRefund(orderId, paidStatus) == 0) {
+            return;
+        }
+        if (ticketService.cancelRefund(orderId, LocalDateTime.now()) != tickets.size()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "退款票券解冻失败");
+        }
+    }
+
+    @Override
+    public void reconcileRefund(Long orderId) {
+        BookingOrder order = bookingMapper.findOrderByOrderId(orderId);
+        if (order == null || order.getStatus() != BookingOrderStatus.REFUNDING) {
+            return;
+        }
+        processRefund(toRefundRequest(order), false);
+    }
+
+    @Override
+    public List<BookingOrder> listRefundingOrders(LocalDateTime requestedBefore) {
+        return bookingMapper.listRefundingOrders(requestedBefore);
+    }
+
+    private RefundRequest toRefundRequest(BookingOrder order) {
+        return new RefundRequest(
+                order.getId(), order.getRefundNo(), order.getPaymentNo(), order.getTotalAmount());
+    }
+
+    private record RefundPreparation(
+            RefundRequest request, boolean newRequest, boolean alreadyCompleted) {
+
+        private static RefundPreparation pending(RefundRequest request, boolean newRequest) {
+            return new RefundPreparation(request, newRequest, false);
+        }
+
+        private static RefundPreparation done() {
+            return new RefundPreparation(null, false, true);
+        }
     }
 
     @Override

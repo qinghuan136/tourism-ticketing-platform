@@ -15,7 +15,7 @@
     <!-- 详情中的状态时间统一来自订单头，明细和票券由后续单独查询。 -->
     <sql id="orderDetailExtraColumns">
         bo.payment_no, bo.paid_at, bo.cancelled_at, bo.closed_at,
-        bo.completed_at, bo.refund_at
+        bo.completed_at, bo.refund_no, bo.refund_requested_at, bo.refund_at
     </sql>
     <!--    通用更新-->
     <update id="updateOrder">
@@ -42,6 +42,12 @@
             <if test="order.refundAt != null">
                 refund_at = #{order.refundAt},
             </if>
+            <if test="order.refundNo != null">
+                refund_no = #{order.refundNo},
+            </if>
+            <if test="order.refundRequestedAt != null">
+                refund_requested_at = #{order.refundRequestedAt},
+            </if>
             <if test="order.expireAt != null">
                 expire_at = #{order.expireAt},
             </if>
@@ -52,6 +58,17 @@
         </set>
         where id = #{order.id}
         and status = #{oldStatus}
+    </update>
+
+    <!-- 第三方明确失败后允许用户重新发起一次新的退款。 -->
+    <update id="resetFailedRefund">
+        update booking_order
+        set status = #{newStatus},
+            refund_no = null,
+            refund_requested_at = null,
+            updated_at = CURRENT_TIMESTAMP
+        where id = #{orderId}
+          and status = 'REFUNDING'
     </update>
 
     <!-- 状态与支付期限一并放进更新条件，由数据库裁决支付、取消和超时任务的竞争。 -->
@@ -92,10 +109,12 @@
         <result property="purchaserName" column="purchaser_name"/>
         <result property="purchaserPhone" column="purchaser_phone"/>
         <result property="paymentNo" column="payment_no"/>
+        <result property="refundNo" column="refund_no"/>
         <result property="paidAt" column="paid_at"/>
         <result property="cancelledAt" column="cancelled_at"/>
         <result property="closedAt" column="closed_at"/>
         <result property="completedAt" column="completed_at"/>
+        <result property="refundRequestedAt" column="refund_requested_at"/>
         <result property="refundAt" column="refund_at"/>
     </resultMap>
 
@@ -208,7 +227,7 @@
         from booking_order bo
         join booking_order_item boi on boi.order_id = bo.id
         where bo.session_id = #{sessionId}
-          and bo.status in ('PENDING_PAYMENT', 'PAID', 'COMPLETED')
+          and bo.status in ('PENDING_PAYMENT', 'PAID', 'REFUNDING', 'COMPLETED')
           and boi.visitor_id in
         <foreach collection="visitorIds" item="visitorId"
                  open="(" close=")" separator=",">
@@ -221,6 +240,15 @@
         from booking_order
         where status = 'PENDING_PAYMENT'
           and expire_at <![CDATA[<=]]> #{timeout}
+    </select>
+
+    <select id="listRefundingOrders" resultType="com.qinghuan.pojo.entity.BookingOrder">
+        select *
+        from booking_order
+        where status = 'REFUNDING'
+          and refund_requested_at &lt;= #{requestedBefore}
+        order by refund_requested_at, id
+        limit 100
     </select>
 
     <update id="completePaidOrders">

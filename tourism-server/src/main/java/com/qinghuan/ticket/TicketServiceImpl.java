@@ -45,6 +45,21 @@ public class TicketServiceImpl implements TicketService {
     }
 
     @Override
+    public int markRefunding(Long orderId) {
+        return ticketMapper.markRefundingByOrderId(orderId);
+    }
+
+    @Override
+    public int completeRefund(Long orderId) {
+        return ticketMapper.voidRefundingByOrderId(orderId);
+    }
+
+    @Override
+    public int cancelRefund(Long orderId, LocalDateTime now) {
+        return ticketMapper.restoreRefundingByOrderId(orderId, now);
+    }
+
+    @Override
     public PageResult<TicketVO> pageMyTickets(TicketPageQueryDTO queryDTO) {
         PageHelper.startPage(queryDTO.getPage(), queryDTO.getSize());
         Page<TicketVO> page = (Page<TicketVO>) ticketMapper.listMyTickets(

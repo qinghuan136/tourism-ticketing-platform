@@ -8,7 +8,9 @@ import com.qinghuan.pojo.vo.StatisticsOverviewVO;
 import com.qinghuan.pojo.vo.StatisticsTrendVO;
 import com.qinghuan.pojo.vo.TicketTypeStatisticsVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,7 +21,8 @@ import java.util.List;
 /** 运营端基础经营统计接口。 */
 @RestController
 @RequestMapping("/operator/statistics")
-@Tag(name = "Statistics", description = "运营端经营统计")
+@Tag(name = "运营统计", description = "当前运营者所属景点的经营概览、趋势与票种排行")
+@SecurityRequirement(name = "BearerAuth")
 public class StatisticsController {
 
     private final StatisticsService statisticsService;
@@ -33,7 +36,7 @@ public class StatisticsController {
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "查询经营概览")
     public ApiResponse<StatisticsOverviewVO> getOverview(
-            @Valid StatisticsDateRangeDTO queryDTO) {
+            @ParameterObject @Valid StatisticsDateRangeDTO queryDTO) {
         return ApiResponse.success(statisticsService.getOverview(queryDTO));
     }
 
@@ -42,7 +45,7 @@ public class StatisticsController {
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "查询每日销售趋势")
     public ApiResponse<List<StatisticsTrendVO>> listTrend(
-            @Valid StatisticsDateRangeDTO queryDTO) {
+            @ParameterObject @Valid StatisticsDateRangeDTO queryDTO) {
         return ApiResponse.success(statisticsService.listTrend(queryDTO));
     }
 
@@ -51,7 +54,7 @@ public class StatisticsController {
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "查询票种销售排行")
     public ApiResponse<List<TicketTypeStatisticsVO>> listTicketTypeStatistics(
-            @Valid StatisticsDateRangeDTO queryDTO) {
+            @ParameterObject @Valid StatisticsDateRangeDTO queryDTO) {
         return ApiResponse.success(statisticsService.listTicketTypeStatistics(queryDTO));
     }
 }

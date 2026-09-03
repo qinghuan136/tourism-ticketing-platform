@@ -26,6 +26,11 @@ public interface TicketService {
      */
     Integer updateTickets(List<Ticket> tickets);
 
+    /** 冻结、完成或取消一笔订单的退款票券。 */
+    int markRefunding(Long orderId);
+    int completeRefund(Long orderId);
+    int cancelRefund(Long orderId, LocalDateTime now);
+
     /** 分页查询当前游客自己的电子票。 */
     PageResult<TicketVO> pageMyTickets(TicketPageQueryDTO queryDTO);
 

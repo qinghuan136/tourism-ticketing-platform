@@ -41,18 +41,6 @@ public class CouponClaimCompensationService {
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    /**
-     * Kafka 消息最终发送失败时，撤销 Redis 预扣。
-     */
-    public void compensateSendFailure(
-            CouponClaimCommand command) {
-
-        compensate(
-                command,
-                CouponClaimFailureReason.MESSAGE_SEND_FAILED
-        );
-    }
-
     /** 消息进入 DLT 且 MySQL 没有结果时，撤销 Redis 预扣。 */
     public void compensateConsumeFailure(CouponClaimCommand command) {
         compensate(
@@ -77,10 +65,14 @@ public class CouponClaimCompensationService {
                         ),
                         CouponConstant.claimedUsersKey(
                                 command.activityId()
+                        ),
+                        CouponConstant.claimOutboxKey(
+                                command.activityId()
                         )
                 ),
                 command.requestId(),
-                command.userId().toString()
+                command.userId().toString(),
+                command.toOutboxValue()
         );
 
         /*

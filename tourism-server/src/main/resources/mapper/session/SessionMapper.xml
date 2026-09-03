@@ -163,7 +163,7 @@
         select count(*)
         from booking_order
         where session_id = #{sessionId}
-          and status in ('PENDING_PAYMENT', 'PAID')
+          and status in ('PENDING_PAYMENT', 'PAID', 'REFUNDING')
     </select>
 
     <update id="updateStatus">

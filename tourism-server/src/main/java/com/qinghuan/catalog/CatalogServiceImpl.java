@@ -38,6 +38,7 @@ public class CatalogServiceImpl implements CatalogService {
     private final OssUtils ossUtils;
     private final CacheClient cacheClient;
     private final Cache<Long, CatalogVenueVO> venueDetailLocalCache;
+    private final VenueBloomFilter venueBloomFilter;
     private final SessionService sessionService;
     private final SessionInventoryService sessionInventoryService;
     private final VenueGeoService venueGeoService;
@@ -49,6 +50,7 @@ public class CatalogServiceImpl implements CatalogService {
             CacheClient cacheClient,
             @Qualifier("venueDetailLocalCache")
             Cache<Long, CatalogVenueVO> venueDetailLocalCache,
+            VenueBloomFilter venueBloomFilter,
             SessionService sessionService,
             SessionInventoryService sessionInventoryService,
             VenueGeoService venueGeoService,
@@ -57,6 +59,7 @@ public class CatalogServiceImpl implements CatalogService {
         this.ossUtils = ossUtils;
         this.cacheClient = cacheClient;
         this.venueDetailLocalCache = venueDetailLocalCache;
+        this.venueBloomFilter = venueBloomFilter;
         this.sessionService = sessionService;
         this.sessionInventoryService = sessionInventoryService;
         this.venueGeoService = venueGeoService;
@@ -64,7 +67,7 @@ public class CatalogServiceImpl implements CatalogService {
     }
 
     @Override
-    public PageResult<CatalogVenueVO> pageSellableVenues(
+    public PageResult<CatalogVenueVO> pageVenues(
             CatalogVenuePageQueryDTO queryDTO) {
         queryDTO.setKeyword(StringUtils.hasText(queryDTO.getKeyword())
                 ? queryDTO.getKeyword().trim()
@@ -72,7 +75,7 @@ public class CatalogServiceImpl implements CatalogService {
 
         PageHelper.startPage(queryDTO.getPage(), queryDTO.getSize());
         Page<CatalogVenueVO> page = (Page<CatalogVenueVO>)
-                catalogMapper.listSellableVenues(queryDTO);
+                catalogMapper.listEnabledVenues(queryDTO);
         page.forEach(this::resolveCoverUrl);
 
         return new PageResult<>(
@@ -93,7 +96,7 @@ public class CatalogServiceImpl implements CatalogService {
                         VenueConstant.VENUE_DETAIL_PREFIX,
                         id,
                         CatalogVenueVO.class,
-                        catalogMapper::findEnabledVenue,
+                        this::findEnabledVenueIfMightExist,
                         VenueConstant.VENUE_DETAIL_TTL,
                         TimeUnit.SECONDS
                 )
@@ -111,6 +114,17 @@ public class CatalogServiceImpl implements CatalogService {
         CatalogVenueVO result = copyVenue(cachedVenue);
         resolveCoverUrl(result);
         return result;
+    }
+
+    /**
+     * 该方法只会在 Caffeine 和 Redis 都未命中时执行。
+     * 布隆过滤器明确判定不存在的 ID 不再访问 MySQL。
+     */
+    private CatalogVenueVO findEnabledVenueIfMightExist(Long venueId) {
+        if (!venueBloomFilter.mightContain(venueId)) {
+            return null;
+        }
+        return catalogMapper.findEnabledVenue(venueId);
     }
 
     /**

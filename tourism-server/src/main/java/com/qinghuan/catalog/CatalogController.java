@@ -10,6 +10,7 @@ import com.qinghuan.pojo.vo.PageResult;
 import com.qinghuan.pojo.vo.SellableSessionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotNull;
@@ -26,7 +27,7 @@ import java.util.List;
 
 @Validated
 @RestController
-@Tag(name = "Catalog", description = "游客端公开可售内容查询")
+@Tag(name = "游客内容", description = "无需登录的景点、场次和附近景点查询")
 public class CatalogController {
 
     private final CatalogService catalogService;
@@ -36,23 +37,23 @@ public class CatalogController {
     }
 
     @GetMapping("/public/venues")
-    @Operation(summary = "分页查询可预约景点")
-    public ApiResponse<PageResult<CatalogVenueVO>> pageSellableVenues(
-            @Valid CatalogVenuePageQueryDTO queryDTO) {
-        return ApiResponse.success(catalogService.pageSellableVenues(queryDTO));
+    @Operation(summary = "分页查询景点")
+    public ApiResponse<PageResult<CatalogVenueVO>> pageVenues(
+            @ParameterObject @Valid CatalogVenuePageQueryDTO queryDTO) {
+        return ApiResponse.success(catalogService.pageVenues(queryDTO));
     }
 
     @GetMapping("/public/venues/nearby")
     @Operation(summary = "根据当前坐标查询附近景点")
     public ApiResponse<List<NearbyVenueVO>> listNearbyVenues(
-            @Valid NearbyVenueQueryDTO queryDTO) {
+            @ParameterObject @Valid NearbyVenueQueryDTO queryDTO) {
         return ApiResponse.success(catalogService.listNearbyVenues(queryDTO));
     }
 
     @GetMapping("/public/venues/nearby/by-name")
     @Operation(summary = "根据地点名称查询附近景点")
     public ApiResponse<List<NearbyVenueVO>> listNearbyVenuesByName(
-            @Valid NearbyVenueByNameQueryDTO queryDTO) {
+            @ParameterObject @Valid NearbyVenueByNameQueryDTO queryDTO) {
         return ApiResponse.success(catalogService.listNearbyVenuesByName(queryDTO));
     }
 

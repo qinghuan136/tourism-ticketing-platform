@@ -7,7 +7,8 @@ public enum BookingOrderEvent {
     PAY_SUCCESS,
     USER_CANCEL,
     PAYMENT_TIMEOUT,
+    REFUND_REQUESTED,
     REFUND_SUCCESS,
+    REFUND_FAILED,
     FULFILLMENT_FINISHED
 }
-

@@ -38,7 +38,7 @@ public class VisitorServiceImpl implements VisitorService {
         visitor.setName(createDTO.getName());
         visitor.setIdType(createDTO.getIdType());
         visitor.setIdNumber(createDTO.getIdNumber());
-        visitor.setPhone(createDTO.getPhone());
+        visitor.setPhone(normalizePhone(createDTO.getPhone()));
         visitor.setStatus(VisitorStatus.ACTIVE);
 
         try {
@@ -61,6 +61,7 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     @Transactional
     public void updateVisitor(Long visitorId, VisitorUpdateDTO updateDTO) {
+        updateDTO.setPhone(normalizePhone(updateDTO.getPhone()));
         int updatedRows = visitorMapper.update(
                 visitorId, UserContext.getUserId(), updateDTO);
         if (updatedRows == 0) {
@@ -81,5 +82,13 @@ public class VisitorServiceImpl implements VisitorService {
     @Override
     public List<Visitor> listActiveVisitorsForOrder() {
         return visitorMapper.list(UserContext.getUserId(), VisitorStatus.ACTIVE);
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) {
+            return null;
+        }
+        String normalized = phone.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 }

@@ -134,6 +134,9 @@ public class VerificationServiceImpl implements VerificationService {
         if (ticket.getStatus() == TicketStatus.VOID) {
             return "票券已作废";
         }
+        if (ticket.getStatus() == TicketStatus.REFUNDING) {
+            return "票券退款处理中";
+        }
         if (ticket.getStatus() == TicketStatus.EXPIRED
                 || !now.isBefore(ticket.getValidUntil())) {
             return "票券已过期";

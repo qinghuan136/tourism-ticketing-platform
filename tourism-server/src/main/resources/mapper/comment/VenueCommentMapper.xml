@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qinghuan.comment.VenueCommentMapper">
+
+    <select id="existsEnabledVenue" resultType="boolean">
+        select exists(
+            select 1
+            from venue
+            where id = #{venueId}
+              and status = 'ENABLED'
+        )
+    </select>
+
+    <select id="existsComment" resultType="boolean">
+        select exists(
+            select 1
+            from venue_comment
+            where id = #{commentId}
+        )
+    </select>
+
+    <insert id="insertComment" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        insert into venue_comment (venue_id, user_id, content, like_count)
+        values (#{venueId}, #{userId}, #{content}, #{likeCount})
+    </insert>
+
+    <select id="listByVenueId" resultType="com.qinghuan.pojo.vo.VenueCommentVO">
+        select c.id,
+               u.display_name as author_name,
+               c.content,
+               c.like_count,
+               c.created_at
+        from venue_comment c
+        join user_account u on u.id = c.user_id
+        where c.venue_id = #{venueId}
+        order by c.like_count desc, c.id desc
+    </select>
+
+    <insert id="insertLike">
+        insert ignore into venue_comment_like (comment_id, user_id)
+        values (#{commentId}, #{userId})
+    </insert>
+
+    <update id="increaseLikeCount">
+        update venue_comment
+        set like_count = like_count + 1
+        where id = #{commentId}
+    </update>
+
+    <delete id="deleteLike">
+        delete from venue_comment_like
+        where comment_id = #{commentId}
+          and user_id = #{userId}
+    </delete>
+
+    <update id="decreaseLikeCount">
+        update venue_comment
+        set like_count = like_count - 1
+        where id = #{commentId}
+          and like_count &gt; 0
+    </update>
+
+</mapper>

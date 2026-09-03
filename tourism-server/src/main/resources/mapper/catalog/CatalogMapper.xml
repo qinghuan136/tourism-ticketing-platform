@@ -4,6 +4,12 @@
 
 <mapper namespace="com.qinghuan.catalog.CatalogMapper">
 
+    <!-- 加载全部景点，避免停用景点重新启用后被布隆过滤器误判为不存在。 -->
+    <select id="listAllVenueIds" resultType="java.lang.Long">
+        select id
+        from venue
+    </select>
+
     <!-- 一行场次可对应多行票种，resultMap 会按场次 ID 聚合为嵌套列表。 -->
     <resultMap id="sellableSessionResultMap"
                type="com.qinghuan.pojo.vo.SellableSessionVO">
@@ -24,29 +30,36 @@
         </collection>
     </resultMap>
 
-    <!-- 最低价只统计当前真正可下单的场次票种。 -->
-    <select id="listSellableVenues" resultType="com.qinghuan.pojo.vo.CatalogVenueVO">
-        select v.id, v.name, v.address, v.description,
-               v.cover_object_key as cover_url,
-               min(stt.sale_price) as minimum_price
-        from venue v
-        join admission_session s on s.venue_id = v.id
-        join session_ticket_type stt on stt.session_id = s.id
-        join ticket_type tt on tt.id = stt.ticket_type_id
-        where v.status = 'ENABLED'
-          and s.status = 'OPEN'
-          and s.booking_start_at &lt;= CURRENT_TIMESTAMP
-          and s.booking_end_at &gt; CURRENT_TIMESTAMP
-          and s.remaining_capacity &gt; 0
-          and stt.status = 'ON_SALE'
-          and stt.remaining_quantity &gt; 0
-          and tt.status = 'ENABLED'
-        <if test="keyword != null and keyword != ''">
-            and (v.name like concat('%', #{keyword}, '%')
-                 or v.address like concat('%', #{keyword}, '%'))
-        </if>
-        group by v.id, v.name, v.address, v.description, v.cover_object_key
-        order by min(s.visit_date), v.id
+    <!-- 所有启用景点均可浏览；最低价只统计当前真正可下单的场次票种。 -->
+    <select id="listEnabledVenues" resultType="com.qinghuan.pojo.vo.CatalogVenueVO">
+        select *
+        from (
+            select v.id, v.name, v.address, v.description,
+                   v.cover_object_key as cover_url,
+                   (
+                       select min(stt.sale_price)
+                       from admission_session s
+                       join session_ticket_type stt on stt.session_id = s.id
+                       join ticket_type tt on tt.id = stt.ticket_type_id
+                       where s.venue_id = v.id
+                         and s.status = 'OPEN'
+                         and s.booking_start_at &lt;= CURRENT_TIMESTAMP
+                         and s.booking_end_at &gt; CURRENT_TIMESTAMP
+                         and s.remaining_capacity &gt; 0
+                         and stt.status = 'ON_SALE'
+                         and stt.remaining_quantity &gt; 0
+                         and tt.status = 'ENABLED'
+                   ) as minimum_price
+            from venue v
+            where v.status = 'ENABLED'
+            <if test="keyword != null and keyword != ''">
+                and (v.name like concat('%', #{keyword}, '%')
+                     or v.address like concat('%', #{keyword}, '%'))
+            </if>
+        ) venue_list
+        order by venue_list.minimum_price is null,
+                 venue_list.minimum_price,
+                 venue_list.id
     </select>
 
     <select id="findEnabledVenue" resultType="com.qinghuan.pojo.vo.CatalogVenueVO">

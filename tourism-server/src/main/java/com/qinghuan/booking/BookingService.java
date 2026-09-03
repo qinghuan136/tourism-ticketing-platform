@@ -10,6 +10,7 @@ import com.qinghuan.pojo.vo.OrderSummaryVO;
 import com.qinghuan.pojo.vo.PageResult;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 public interface BookingService {
 
@@ -35,8 +36,14 @@ public interface BookingService {
      */
     boolean payOrder(Long orderId);
 
-    // 整单退款
+    /** 分阶段整单退款：先保存退款意图，再请求网关并完成本地收尾。 */
     void refundOrder(Long orderId);
+
+    /** 查询和继续处理一笔长时间停留在 REFUNDING 的订单。 */
+    void reconcileRefund(Long orderId);
+
+    /** 查询需要对账的退款中订单。 */
+    List<BookingOrder> listRefundingOrders(LocalDateTime requestedBefore);
 
     // 取消待支付订单
     void cancelOrder(Long orderId);

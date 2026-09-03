@@ -8,11 +8,13 @@ import com.qinghuan.pojo.dto.UserCouponQueryDTO;
 import com.qinghuan.pojo.enums.AccountRole;
 import com.qinghuan.pojo.vo.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,7 +28,7 @@ import java.util.List;
 
 @Validated
 @RestController
-@Tag(name = "Coupon", description = "优惠券活动管理与普通查询接口")
+@Tag(name = "优惠券", description = "优惠券活动管理、游客异步领券与个人优惠券查询")
 public class CouponController {
 
     private final CouponActivityService activityService;
@@ -44,8 +46,9 @@ public class CouponController {
     @GetMapping("/operator/coupon-activities")
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "分页查询优惠券活动")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<PageResult<CouponActivityVO>> pageActivities(
-            @Valid CouponActivityPageQueryDTO query) {
+            @ParameterObject @Valid CouponActivityPageQueryDTO query) {
         return ApiResponse.success(activityService.pageActivities(query));
     }
 
@@ -54,6 +57,7 @@ public class CouponController {
     @ResponseStatus(HttpStatus.CREATED)
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "创建优惠券活动草稿")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<CouponActivityCreatedVO> createDraft(
             @Valid @RequestBody CouponActivityWriteDTO writeDTO) {
         return ApiResponse.success(activityService.createDraft(writeDTO));
@@ -63,6 +67,7 @@ public class CouponController {
     @GetMapping("/operator/coupon-activities/{activityId}")
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "获取优惠券活动详情")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<CouponActivityVO> getActivity(
             @PathVariable @Positive(message = "活动ID必须为正数") Long activityId) {
         return ApiResponse.success(activityService.getActivity(activityId));
@@ -72,6 +77,7 @@ public class CouponController {
     @PutMapping("/operator/coupon-activities/{activityId}")
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "修改优惠券活动草稿")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<Void> updateDraft(
             @PathVariable @Positive(message = "活动ID必须为正数") Long activityId,
             @Valid @RequestBody CouponActivityWriteDTO writeDTO) {
@@ -83,6 +89,7 @@ public class CouponController {
     @PostMapping("/operator/coupon-activities/{activityId}/publish")
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "发布优惠券活动")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<Void> publish(
             @PathVariable @Positive(message = "活动ID必须为正数") Long activityId) {
         activityService.publish(activityId);
@@ -93,6 +100,7 @@ public class CouponController {
     @PostMapping("/operator/coupon-activities/{activityId}/cancel")
     @RequireRole(AccountRole.OPERATOR)
     @Operation(summary = "取消优惠券活动")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<Void> cancel(
             @PathVariable @Positive(message = "活动ID必须为正数") Long activityId) {
         activityService.cancel(activityId);
@@ -110,7 +118,8 @@ public class CouponController {
     /** 异步提交后由游客轮询数据库最终处理结果。 */
     @GetMapping("/tourist/coupon-claims/{requestId}")
     @RequireRole(AccountRole.TOURIST)
-    @Operation(summary = "查询异步抢券结果")
+    @Operation(summary = "查询异步抢券结果", description = "使用提交领券请求时返回的 requestId 轮询，直到状态变为 SUCCESS 或 FAILED")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<CouponClaimResultVO> getClaimResult(
             @PathVariable @NotBlank(message = "请求号不能为空") String requestId) {
         return ApiResponse.success(queryService.getClaimResult(requestId));
@@ -120,7 +129,8 @@ public class CouponController {
     @GetMapping("/tourist/coupons")
     @RequireRole(AccountRole.TOURIST)
     @Operation(summary = "查询我的优惠券")
-    public ApiResponse<List<UserCouponVO>> listMyCoupons(@Valid UserCouponQueryDTO query) {
+    @SecurityRequirement(name = "BearerAuth")
+    public ApiResponse<List<UserCouponVO>> listMyCoupons(@ParameterObject @Valid UserCouponQueryDTO query) {
         return ApiResponse.success(queryService.listMyCoupons(query));
     }
 
@@ -130,7 +140,8 @@ public class CouponController {
     @PostMapping("/tourist/coupon-activities/{activityId}/claims")
     @ResponseStatus(HttpStatus.ACCEPTED)
     @RequireRole(AccountRole.TOURIST)
-    @Operation(summary = "异步提交抢券请求")
+    @Operation(summary = "异步提交抢券请求", description = "请求被受理后返回 requestId 和 PENDING 状态，最终结果通过领券结果接口查询")
+    @SecurityRequirement(name = "BearerAuth")
     public ApiResponse<CouponClaimAcceptedVO> claimCoupon(
             @PathVariable
             @Positive(message = "活动ID必须为正数")

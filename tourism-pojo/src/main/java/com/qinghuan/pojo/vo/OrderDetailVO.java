@@ -18,10 +18,12 @@ public class OrderDetailVO extends OrderSummaryVO {
     private String purchaserName;
     private String purchaserPhone;
     private String paymentNo;
+    private String refundNo;
     private LocalDateTime paidAt;
     private LocalDateTime cancelledAt;
     private LocalDateTime closedAt;
     private LocalDateTime completedAt;
+    private LocalDateTime refundRequestedAt;
     private LocalDateTime refundAt;
     private List<OrderItemVO> items;
 }

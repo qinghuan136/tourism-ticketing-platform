@@ -9,13 +9,17 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * 将应用异常转换成统一、安全的 HTTP 响应。
@@ -36,6 +40,16 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException exception) {
         String message = exception.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                .distinct()
+                .collect(Collectors.joining("; "));
+        return invalidRequest(message);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleHandlerMethodValidation(
+            HandlerMethodValidationException exception) {
+        String message = exception.getParameterValidationResults().stream()
+                .flatMap(this::validationMessages)
                 .distinct()
                 .collect(Collectors.joining("; "));
         return invalidRequest(message);
@@ -91,5 +105,16 @@ public class GlobalExceptionHandler {
             case CONFLICT -> HttpStatus.CONFLICT;
             case SUCCESS, INTERNAL_ERROR, GENERIC_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
+    }
+
+    private Stream<String> validationMessages(ParameterValidationResult result) {
+        if (result instanceof ParameterErrors errors) {
+            return errors.getFieldErrors().stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage());
+        }
+        return result.getResolvableErrors().stream()
+                .map(error -> error.getDefaultMessage() == null
+                        ? ErrorCode.INVALID_REQUEST.getMessage()
+                        : error.getDefaultMessage());
     }
 }

@@ -7,7 +7,9 @@ import com.qinghuan.pojo.enums.AccountRole;
 import com.qinghuan.pojo.vo.PageResult;
 import com.qinghuan.pojo.vo.TicketVO;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import org.springframework.validation.annotation.Validated;
@@ -17,7 +19,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Validated
 @RestController
-@Tag(name = "TouristTicket", description = "游客端电子票查询")
+@Tag(name = "电子票", description = "游客本人电子票列表与详情查询")
+@SecurityRequirement(name = "BearerAuth")
 public class TicketController {
 
     private final TicketService ticketService;
@@ -30,7 +33,7 @@ public class TicketController {
     @RequireRole(AccountRole.TOURIST)
     @Operation(summary = "分页查询我的票券")
     public ApiResponse<PageResult<TicketVO>> pageMyTickets(
-            @Valid TicketPageQueryDTO queryDTO) {
+            @ParameterObject @Valid TicketPageQueryDTO queryDTO) {
         return ApiResponse.success(ticketService.pageMyTickets(queryDTO));
     }
 

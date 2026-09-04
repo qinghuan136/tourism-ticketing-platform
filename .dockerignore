@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+**/target
+**/node_modules
+**/dist
+**/logs
+tests/jmeter/coupon-seckill/results
+tests/jmeter/coupon-seckill/users.csv
+*.log
+*.tmp

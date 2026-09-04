@@ -1,0 +1,10 @@
+spring:
+  flyway:
+    # demo Profile 在完成正式迁移后追加演示数据，不影响其他运行环境。
+    locations: classpath:db/migration,classpath:db/demo
+
+logging:
+  level:
+    root: INFO
+    com.qinghuan: INFO
+    org.flywaydb: INFO

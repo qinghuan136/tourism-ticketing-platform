@@ -81,6 +81,10 @@ services:
     environment:
       MODE: standalone
       NACOS_AUTH_ENABLE: "false"
+      NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN}
+      NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-tourism-nacos-key}
+      NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-tourism-nacos-value}
+
     ports:
       - "18080:8080"
       - "8848:8848"

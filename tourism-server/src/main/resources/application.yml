@@ -5,6 +5,11 @@ spring:
   application:
     name: tourism-server
 
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+
   # 本机专用配置放在仓库根目录 application-local.yml，已被 Git 忽略。
   config:
     import: optional:file:./application-local.yml,optional:file:../application-local.yml

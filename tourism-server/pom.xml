@@ -161,6 +161,10 @@
             <artifactId>canal.protocol</artifactId>
             <version>${canal.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
 
     </dependencies>
 

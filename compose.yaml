@@ -75,6 +75,17 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  nacos:
+    image: nacos/nacos-server:v3.1.1
+    container_name: tourism-nacos
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "18080:8080"
+      - "8848:8848"
+      - "9848:9848"
+
   backend:
     build:
       context: .
@@ -101,6 +112,7 @@ services:
       OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-YOUR_OSS_ACCESS_KEY_ID}
       OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-YOUR_OSS_ACCESS_KEY_SECRET}
       OSS_BUCKET_NAME: ${OSS_BUCKET_NAME:-YOUR_OSS_BUCKET_NAME}
+      NACOS_SERVER_ADDR: nacos:8848
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     depends_on:

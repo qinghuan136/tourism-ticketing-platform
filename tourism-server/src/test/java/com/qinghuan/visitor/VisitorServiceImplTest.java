@@ -21,18 +21,21 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
 
 @ExtendWith(MockitoExtension.class)
 class VisitorServiceImplTest {
 
     @Mock
     private VisitorMapper visitorMapper;
+    @Mock
+    private VisitorFingerprintGenerator fingerprintGenerator;
 
     private VisitorServiceImpl visitorService;
 
     @BeforeEach
     void setUp() {
-        visitorService = new VisitorServiceImpl(visitorMapper);
+        visitorService = new VisitorServiceImpl(visitorMapper, fingerprintGenerator);
         UserContext.set(new LoginUser(9L, "tourist", AccountRole.TOURIST, null));
     }
 
@@ -50,6 +53,22 @@ class VisitorServiceImplTest {
         ArgumentCaptor<Visitor> captor = ArgumentCaptor.forClass(Visitor.class);
         verify(visitorMapper).insert(captor.capture());
         assertNull(captor.getValue().getPhone());
+    }
+
+    @Test
+    void createVisitor_shouldSaveIdentityFingerprintFromRequestDocument() {
+        VisitorCreateDTO request = createRequest("13800000000");
+        when(visitorMapper.insert(any(Visitor.class))).thenAnswer(invocation -> {
+            invocation.getArgument(0, Visitor.class).setId(101L);
+            return 1;
+        });
+        when(fingerprintGenerator.generate("ID_CARD", "440101199803120011"))
+                .thenReturn("fingerprint-101");
+
+        visitorService.createVisitor(request);
+
+        verify(fingerprintGenerator).generate("ID_CARD", "440101199803120011");
+        verify(visitorMapper).insertIdentity(101L, "fingerprint-101");
     }
 
     @Test

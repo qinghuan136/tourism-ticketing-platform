@@ -220,18 +220,19 @@
         select * from booking_order where id = #{id}
     </select>
 
-    <!-- 取消、超时关闭和退款已释放占位，允许参观人重新购买当前场次。 -->
-    <select id="findConflictingOrdersBySessionAndVisitorIds"
+    <!-- 取消、超时关闭和退款已释放占位，允许相同证件身份重新购买当前场次。 -->
+    <select id="findConflictingOrdersBySessionAndFingerprints"
             resultType="com.qinghuan.pojo.entity.BookingOrder">
         select distinct bo.*
         from booking_order bo
         join booking_order_item boi on boi.order_id = bo.id
+        join visitor_identity vi on vi.visitor_id = boi.visitor_id
         where bo.session_id = #{sessionId}
           and bo.status in ('PENDING_PAYMENT', 'PAID', 'REFUNDING', 'COMPLETED')
-          and boi.visitor_id in
-        <foreach collection="visitorIds" item="visitorId"
+          and vi.fingerprint in
+        <foreach collection="fingerprints" item="fingerprint"
                  open="(" close=")" separator=",">
-            #{visitorId}
+            #{fingerprint}
         </foreach>
     </select>
 

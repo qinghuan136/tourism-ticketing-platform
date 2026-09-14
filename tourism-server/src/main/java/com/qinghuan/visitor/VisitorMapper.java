@@ -21,6 +21,13 @@ public interface VisitorMapper {
     /** 新建参观人并回填主键。 */
     int insert(Visitor visitor);
 
+    /** 保存参观人的稳定证件身份指纹。 */
+    int insertIdentity(@Param("visitorId") Long visitorId,
+                       @Param("fingerprint") String fingerprint);
+
+    /** 查询下单所需的有效参观人及其证件指纹。 */
+    List<VisitorForOrder> listActiveForOrder(@Param("userId") Long userId);
+
     /** 修改当前游客名下参观人的姓名和手机号。 */
     int update(@Param("id") Long id,
                @Param("userId") Long userId,
@@ -31,4 +38,3 @@ public interface VisitorMapper {
                      @Param("userId") Long userId,
                      @Param("status") VisitorStatus status);
 }
-

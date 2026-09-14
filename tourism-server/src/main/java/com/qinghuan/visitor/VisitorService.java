@@ -2,7 +2,6 @@ package com.qinghuan.visitor;
 
 import com.qinghuan.pojo.dto.VisitorCreateDTO;
 import com.qinghuan.pojo.dto.VisitorUpdateDTO;
-import com.qinghuan.pojo.entity.Visitor;
 import com.qinghuan.pojo.enums.VisitorStatus;
 import com.qinghuan.pojo.vo.VisitorVO;
 
@@ -25,6 +24,6 @@ public interface VisitorService {
     /** 启用或停用参观人。 */
     void updateVisitorStatus(Long visitorId, VisitorStatus status);
 
-    /** 查询当前游客的有效参观人，供下单校验归属并生成快照。 */
-    List<Visitor> listActiveVisitorsForOrder();
+    /** 查询当前游客的有效参观人及证件指纹，供下单校验归属并生成快照。 */
+    List<VisitorForOrder> listActiveVisitorsForOrder();
 }

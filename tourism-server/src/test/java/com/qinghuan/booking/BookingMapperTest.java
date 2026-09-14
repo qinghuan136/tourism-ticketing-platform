@@ -31,6 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
         "drop table if exists ticket",
         "drop table if exists booking_order_item",
         "drop table if exists booking_order",
+        "drop table if exists visitor_identity",
+        "drop table if exists visitor",
         "drop table if exists admission_session",
         "drop table if exists venue",
         "drop table if exists user_account",
@@ -94,6 +96,22 @@ import static org.junit.jupiter.api.Assertions.assertNull;
         );
         """,
         """
+        create table visitor (
+            id bigint primary key,
+            user_id bigint not null,
+            name varchar(50) not null,
+            id_type varchar(20) not null,
+            id_number varchar(64) not null,
+            status varchar(20) not null
+        );
+        """,
+        """
+        create table visitor_identity (
+            visitor_id bigint primary key,
+            fingerprint char(64) not null
+        );
+        """,
+        """
         create table ticket (
             id bigint primary key,
             ticket_code varchar(64) not null,
@@ -136,6 +154,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
              '440101199001011234', '成人票', 80.00),
             (603, 503, 103, 301, '王五', 'ID_CARD',
              '440101199001011235', '成人票', 80.00);
+        """,
+        """
+        insert into visitor(id, user_id, name, id_type, id_number, status)
+        values (101, 7, '张三', 'ID_CARD', '440101199001011234', 'ACTIVE'),
+               (103, 7, '王五', 'ID_CARD', '440101199001011235', 'ACTIVE');
+        """,
+        """
+        insert into visitor_identity(visitor_id, fingerprint)
+        values (101, 'fingerprint-101'),
+               (103, 'fingerprint-103');
         """,
         """
         insert into ticket
@@ -264,15 +292,15 @@ class BookingMapperTest {
 
     @Test
     @DisplayName("一人一场次查询只返回仍占用下单资格的订单")
-    void findConflictingOrders_shouldMatchSessionAndVisitor() {
-        assertEquals(1, bookingMapper.findConflictingOrdersBySessionAndVisitorIds(
-                21L, List.of(101L)).size());
-        assertEquals(0, bookingMapper.findConflictingOrdersBySessionAndVisitorIds(
-                21L, List.of(103L)).size());
-        assertEquals(0, bookingMapper.findConflictingOrdersBySessionAndVisitorIds(
-                22L, List.of(101L)).size());
-        assertEquals(0, bookingMapper.findConflictingOrdersBySessionAndVisitorIds(
-                21L, List.of(999L)).size());
+    void findConflictingOrders_shouldMatchSessionAndFingerprint() {
+        assertEquals(1, bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                21L, List.of("fingerprint-101")).size());
+        assertEquals(0, bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                21L, List.of("fingerprint-103")).size());
+        assertEquals(0, bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                22L, List.of("fingerprint-101")).size());
+        assertEquals(0, bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                21L, List.of("fingerprint-999")).size());
     }
 
     @Test

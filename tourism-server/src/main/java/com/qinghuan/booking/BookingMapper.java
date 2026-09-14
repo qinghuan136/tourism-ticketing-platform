@@ -45,10 +45,10 @@ public interface BookingMapper {
     /** 按订单号查询订单基础信息。 */
     BookingOrder findOrderByOrderId(Long id);
 
-    /** 查询指定场次中与参观人冲突的有效订单，用于一人一场次校验。 */
-    List<BookingOrder> findConflictingOrdersBySessionAndVisitorIds(
+    /** 查询指定场次中与证件身份冲突的有效订单，用于一人一场次校验。 */
+    List<BookingOrder> findConflictingOrdersBySessionAndFingerprints(
             @Param("sessionId") Long sessionId,
-            @Param("visitorIds") List<Long> visitorIds);
+            @Param("fingerprints") List<String> fingerprints);
 
     /** 更新订单信息。 */
 

@@ -5,11 +5,15 @@ spring:
   application:
     name: tourism-server
 
-  # MySQL 数据源。启动前必须通过环境变量提供账号和密码。
+  # 本机专用配置放在仓库根目录 application-local.yml，已被 Git 忽略。
+  config:
+    import: optional:file:./application-local.yml,optional:file:../application-local.yml
+
+  # MySQL 数据源。账号和密码可由环境变量或本机配置文件提供。
   datasource:
     url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tourism_ticketing_platform}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD:${local.db-password:}}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       # 连接池大小应结合数据库最大连接数和服务实例数调整。
@@ -147,10 +151,10 @@ logging:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
 
-# JWT 密钥必须是至少 32 字节随机值的 Base64 编码，示例：openssl rand -base64 32。
+# 本地开发使用默认密钥；部署环境请通过 JWT_SECRET 覆盖为至少 32 字节的随机 Base64 密钥。
 security:
   jwt:
-    secret: ${JWT_SECRET:}
+    secret: ${JWT_SECRET:dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
     issuer: tourism-ticketing-platform
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:12h}
     excluded-paths:

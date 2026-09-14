@@ -17,7 +17,6 @@ import com.qinghuan.pojo.dto.VenueOrderPageQueryDTO;
 import com.qinghuan.pojo.entity.BookingOrder;
 import com.qinghuan.pojo.entity.BookingOrderItem;
 import com.qinghuan.pojo.entity.Ticket;
-import com.qinghuan.pojo.entity.Visitor;
 import com.qinghuan.pojo.enums.AccountRole;
 import com.qinghuan.pojo.enums.BookingOrderStatus;
 import com.qinghuan.pojo.enums.TicketStatus;
@@ -31,11 +30,13 @@ import com.qinghuan.session.SessionInventoryService;
 import com.qinghuan.session.SessionService;
 import com.qinghuan.ticket.TicketService;
 import com.qinghuan.visitor.VisitorService;
+import com.qinghuan.visitor.VisitorForOrder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.redisson.api.RLock;
@@ -61,6 +62,8 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -195,8 +198,8 @@ class BookingServiceImplTest {
     @Test
     void shouldCreateOrderWithAmountSnapshotsAndInventoryReservation() {
         allowOrderCreation();
-        Visitor visitor1 = visitor(101L, "张三", "ID_CARD", "440101199001011234");
-        Visitor visitor2 = visitor(102L, "李四", "PASSPORT", "P1234567");
+        VisitorForOrder visitor1 = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder visitor2 = visitor(102L, "李四", "PASSPORT", "P1234567");
         when(visitorService.listActiveVisitorsForOrder())
                 .thenReturn(List.of(visitor1, visitor2));
         when(sessionInventoryService.getOrderableTicketTypes(eq(21L), anyList()))
@@ -236,7 +239,7 @@ class BookingServiceImplTest {
     @Test
     void shouldLockCouponAndSaveDiscountedOrderAmount() {
         allowOrderCreation();
-        Visitor visitor = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder visitor = visitor(101L, "张三", "ID_CARD", "440101199001011234");
         when(visitorService.listActiveVisitorsForOrder()).thenReturn(List.of(visitor));
         when(sessionInventoryService.getOrderableTicketTypes(eq(21L), anyList()))
                 .thenReturn(List.of(ticketType(301L, "成人票", "120.00")));
@@ -281,7 +284,7 @@ class BookingServiceImplTest {
     @Test
     void shouldMarkFreeOrderPaidAndCreateTickets() {
         allowOrderCreation();
-        Visitor visitor = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder visitor = visitor(101L, "张三", "ID_CARD", "440101199001011234");
         when(visitorService.listActiveVisitorsForOrder()).thenReturn(List.of(visitor));
         when(sessionInventoryService.getOrderableTicketTypes(eq(21L), anyList()))
                 .thenReturn(List.of(ticketType(301L, "免费票", "0.00")));
@@ -302,11 +305,11 @@ class BookingServiceImplTest {
     @Test
     void shouldRejectVisitorWhoAlreadyHasActiveOrderInSession() {
         allowOrderCreation();
-        Visitor visitor = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder visitor = visitor(101L, "张三", "ID_CARD", "440101199001011234");
         OrderCreateItemRequest item = new OrderCreateItemRequest(101L, 302L);
         when(visitorService.listActiveVisitorsForOrder()).thenReturn(List.of(visitor));
-        when(bookingMapper.findConflictingOrdersBySessionAndVisitorIds(
-                21L, List.of(101L)))
+        when(bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                21L, List.of("fingerprint-101")))
                 .thenReturn(List.of(refundOrder(BookingOrderStatus.PAID)));
 
         BusinessException exception = assertThrows(
@@ -316,8 +319,66 @@ class BookingServiceImplTest {
 
         assertEquals(ErrorCode.CONFLICT, exception.getErrorCode());
         verify(bookingMapper, never()).insertOrder(any());
-        verify(redissonClient).getLock("lock:booking:21:101");
+        verify(redissonClient).getLock("lock:booking:21:fingerprint-101");
         verify(lock).unlock();
+    }
+
+    @Test
+    void shouldRejectDifferentVisitorIdsWithSameFingerprint() {
+        VisitorForOrder first = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder second = visitor(102L, "张三", "ID_CARD", "440101199001011234");
+        second.setFingerprint(first.getFingerprint());
+        when(visitorService.listActiveVisitorsForOrder()).thenReturn(List.of(first, second));
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> bookingService.createOrder(
+                new OrderCreateDTO(21L, List.of(
+                        new OrderCreateItemRequest(101L, 301L),
+                        new OrderCreateItemRequest(102L, 302L)), null)));
+
+        assertEquals(ErrorCode.CONFLICT, exception.getErrorCode());
+        verify(redissonClient, never()).getLock(anyString());
+    }
+
+    @Test
+    void shouldAcquireBookingLocksInFingerprintOrder() {
+        allowOrderCreation();
+        VisitorForOrder first = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder second = visitor(102L, "李四", "PASSPORT", "P1234567");
+        when(visitorService.listActiveVisitorsForOrder()).thenReturn(List.of(first, second));
+        when(bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                21L, List.of("fingerprint-101", "fingerprint-102")))
+                .thenReturn(List.of(refundOrder(BookingOrderStatus.PAID)));
+
+        assertThrows(BusinessException.class, () -> bookingService.createOrder(new OrderCreateDTO(
+                21L, List.of(
+                        new OrderCreateItemRequest(102L, 302L),
+                        new OrderCreateItemRequest(101L, 301L)), null)));
+
+        InOrder order = inOrder(redissonClient);
+        order.verify(redissonClient).getLock("lock:booking:21:fingerprint-101");
+        order.verify(redissonClient).getLock("lock:booking:21:fingerprint-102");
+    }
+
+    @Test
+    void shouldReleasePreviouslyAcquiredLocksWhenLaterLockFails() {
+        VisitorForOrder first = visitor(101L, "张三", "ID_CARD", "440101199001011234");
+        VisitorForOrder second = visitor(102L, "李四", "PASSPORT", "P1234567");
+        RLock firstLock = mock(RLock.class);
+        RLock secondLock = mock(RLock.class);
+        when(visitorService.listActiveVisitorsForOrder()).thenReturn(List.of(first, second));
+        when(redissonClient.getLock("lock:booking:21:fingerprint-101")).thenReturn(firstLock);
+        when(redissonClient.getLock("lock:booking:21:fingerprint-102")).thenReturn(secondLock);
+        when(firstLock.tryLock()).thenReturn(true);
+        when(firstLock.isHeldByCurrentThread()).thenReturn(true);
+        when(secondLock.tryLock()).thenReturn(false);
+
+        assertThrows(BusinessException.class, () -> bookingService.createOrder(new OrderCreateDTO(
+                21L, List.of(
+                        new OrderCreateItemRequest(102L, 302L),
+                        new OrderCreateItemRequest(101L, 301L)), null)));
+
+        verify(firstLock).unlock();
+        verify(secondLock, never()).unlock();
     }
 
     @Test
@@ -561,12 +622,13 @@ class BookingServiceImplTest {
         verify(sessionInventoryService).releaseInventory(21L, Map.of(301L, 1));
     }
 
-    private Visitor visitor(Long id, String name, String idType, String idNumber) {
-        Visitor visitor = new Visitor();
+    private VisitorForOrder visitor(Long id, String name, String idType, String idNumber) {
+        VisitorForOrder visitor = new VisitorForOrder();
         visitor.setId(id);
         visitor.setName(name);
         visitor.setIdType(idType);
         visitor.setIdNumber(idNumber);
+        visitor.setFingerprint("fingerprint-" + id);
         return visitor;
     }
 

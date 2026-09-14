@@ -18,7 +18,6 @@ import com.qinghuan.pojo.dto.VenueOrderPageQueryDTO;
 import com.qinghuan.pojo.entity.BookingOrder;
 import com.qinghuan.pojo.entity.BookingOrderItem;
 import com.qinghuan.pojo.entity.Ticket;
-import com.qinghuan.pojo.entity.Visitor;
 import com.qinghuan.pojo.enums.BookingOrderEvent;
 import com.qinghuan.pojo.enums.BookingOrderStatus;
 import com.qinghuan.pojo.enums.TicketStatus;
@@ -27,6 +26,7 @@ import com.qinghuan.session.SessionInventoryService;
 import com.qinghuan.session.SessionService;
 import com.qinghuan.ticket.TicketService;
 import com.qinghuan.visitor.VisitorService;
+import com.qinghuan.visitor.VisitorForOrder;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
@@ -439,30 +439,38 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // 只允许使用当前游客名下且已启用的参观人，同时保留原始证件信息用于订单快照。
-        Map<Long, Visitor> visitorsById = visitorService.listActiveVisitorsForOrder().stream()
-                .collect(Collectors.toMap(Visitor::getId, Function.identity()));
+        Map<Long, VisitorForOrder> visitorsById = visitorService.listActiveVisitorsForOrder().stream()
+                .collect(Collectors.toMap(VisitorForOrder::getId, Function.identity()));
         if (!visitorsById.keySet().containsAll(visitorIds)) {
             throw new BusinessException(
                     ErrorCode.CONFLICT, "参观人不存在、不属于当前游客或已停用");
         }
 
+        List<String> fingerprints = createOrderDTO.items().stream()
+                .map(item -> visitorsById.get(item.visitorId()).getFingerprint())
+                .toList();
+        if (new HashSet<>(fingerprints).size() != fingerprints.size()) {
+            throw new BusinessException(ErrorCode.CONFLICT, "同一证件身份不能重复下单");
+        }
+        List<String> sortedFingerprints = fingerprints.stream().sorted().toList();
+
         List<RLock> acquiredLocks = new ArrayList<>();
         try {
-            // visitorId 已排序；多人订单固定顺序加锁，避免并发时产生死锁。
-            for (Long visitorId : visitorIds) {
+            // 按稳定身份指纹排序加锁，避免多人订单的跨实例锁顺序不一致。
+            for (String fingerprint : sortedFingerprints) {
                 String lockKey = LOCK_BOOKING_PREFIX
-                        + createOrderDTO.sessionId() + ":" + visitorId;
+                        + createOrderDTO.sessionId() + ":" + fingerprint;
                 RLock lock = redisson.getLock(lockKey);
                 if (!lock.tryLock()) {
                     throw new BusinessException(
-                            ErrorCode.CONFLICT, "参观人正在当前场次下单");
+                            ErrorCode.CONFLICT, "参观身份正在当前场次下单");
                 }
                 acquiredLocks.add(lock);
             }
 
             // TransactionTemplate 返回前事务已经提交，因此这些锁会一直持有到订单真正落库。
             return transactionTemplate.execute(status ->
-                    createInTransaction(createOrderDTO, visitorsById, visitorIds));
+                    createInTransaction(createOrderDTO, visitorsById, sortedFingerprints));
         } finally {
             // 仅释放当前线程已持有的锁，逆序释放与获取顺序对应。
             for (int i = acquiredLocks.size() - 1; i >= 0; i--) {
@@ -475,14 +483,14 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private OrderCreatedVO createInTransaction(OrderCreateDTO createOrderDTO,
-                                               Map<Long, Visitor> visitorsById,
-                                               List<Long> visitorIds) {
+                                               Map<Long, VisitorForOrder> visitorsById,
+                                               List<String> fingerprints) {
         // 锁内再次查询有效订单，与后续写订单处于同一数据库事务。
-        List<BookingOrder> orders = bookingMapper.findConflictingOrdersBySessionAndVisitorIds(
-                createOrderDTO.sessionId(), visitorIds);
+        List<BookingOrder> orders = bookingMapper.findConflictingOrdersBySessionAndFingerprints(
+                createOrderDTO.sessionId(), fingerprints);
         if (!orders.isEmpty()) {
             throw new BusinessException(
-                    ErrorCode.CONFLICT, "参观人已在当前场次下单");
+                    ErrorCode.CONFLICT, "参观身份已在当前场次下单");
         }
 
         // 汇总每种场次票的购买数量，库存服务据此进行原子扣减。
@@ -570,7 +578,7 @@ public class BookingServiceImpl implements BookingService {
     /** 将当前资料和成交价格复制为订单明细快照，防止后续资料修改影响历史订单。 */
     private BookingOrderItem toOrderItem(
             Long orderId, OrderCreateItemRequest request,
-            Visitor visitor, SessionTicketTypeVO ticketType) {
+            VisitorForOrder visitor, SessionTicketTypeVO ticketType) {
         BookingOrderItem orderItem = new BookingOrderItem();
         orderItem.setOrderId(orderId);
         orderItem.setVisitorId(visitor.getId());

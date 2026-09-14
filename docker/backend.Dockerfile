@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM eclipse-temurin:17-jdk-jammy AS build
 
 WORKDIR /workspace
@@ -10,7 +11,8 @@ COPY tourism-common/src tourism-common/src
 COPY tourism-pojo/src tourism-pojo/src
 COPY tourism-server/src tourism-server/src
 
-RUN chmod +x mvnw \
+RUN --mount=type=cache,target=/root/.m2 \
+    chmod +x mvnw \
     && ./mvnw -B -pl tourism-server -am package -DskipTests
 
 FROM eclipse-temurin:17-jre-jammy

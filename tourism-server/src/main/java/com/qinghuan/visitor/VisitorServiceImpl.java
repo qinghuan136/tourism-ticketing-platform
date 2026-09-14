@@ -18,9 +18,12 @@ import java.util.List;
 public class VisitorServiceImpl implements VisitorService {
 
     private final VisitorMapper visitorMapper;
+    private final VisitorFingerprintGenerator fingerprintGenerator;
 
-    public VisitorServiceImpl(VisitorMapper visitorMapper) {
+    public VisitorServiceImpl(VisitorMapper visitorMapper,
+                              VisitorFingerprintGenerator fingerprintGenerator) {
         this.visitorMapper = visitorMapper;
+        this.fingerprintGenerator = fingerprintGenerator;
     }
 
     @Override
@@ -46,6 +49,9 @@ public class VisitorServiceImpl implements VisitorService {
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.CONFLICT, "该证件对应的参观人已存在");
         }
+        // 与 visitor 插入处于同一事务，避免存在无法参与下单的参观人记录。
+        visitorMapper.insertIdentity(
+                visitor.getId(), fingerprintGenerator.generate(createDTO.getIdType(), createDTO.getIdNumber()));
         return visitor.getId();
     }
 
@@ -80,8 +86,8 @@ public class VisitorServiceImpl implements VisitorService {
     }
 
     @Override
-    public List<Visitor> listActiveVisitorsForOrder() {
-        return visitorMapper.list(UserContext.getUserId(), VisitorStatus.ACTIVE);
+    public List<VisitorForOrder> listActiveVisitorsForOrder() {
+        return visitorMapper.listActiveForOrder(UserContext.getUserId());
     }
 
     private String normalizePhone(String phone) {

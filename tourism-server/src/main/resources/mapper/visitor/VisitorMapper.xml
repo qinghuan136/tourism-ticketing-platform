@@ -28,6 +28,20 @@
         values (#{userId}, #{name}, #{idType}, #{idNumber}, #{phone}, #{status})
     </insert>
 
+    <insert id="insertIdentity">
+        insert into visitor_identity (visitor_id, fingerprint)
+        values (#{visitorId}, #{fingerprint})
+    </insert>
+
+    <!-- 仅下单校验联表获取身份指纹，普通参观人查询不承担该关联。 -->
+    <select id="listActiveForOrder" resultType="com.qinghuan.visitor.VisitorForOrder">
+        select v.id, v.user_id, v.name, v.id_type, v.id_number, v.status, vi.fingerprint
+        from visitor v
+        join visitor_identity vi on vi.visitor_id = v.id
+        where v.user_id = #{userId}
+          and v.status = 'ACTIVE'
+    </select>
+
     <update id="update">
         update visitor
         set name = #{updateDTO.name},
@@ -46,4 +60,3 @@
     </update>
 
 </mapper>
-

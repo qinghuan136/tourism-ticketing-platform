@@ -16,6 +16,31 @@ spring:
       server:
         webflux:
           routes:
+            # Swagger UI 由 Gateway 自身提供；以下路由仅代理各服务的 OpenAPI JSON。
+            - id: order-service-openapi
+              uri: lb://order-service
+              predicates:
+                - Path=/_docs/order/v3/api-docs
+              filters:
+                - StripPrefix=2
+            - id: user-service-openapi
+              uri: lb://user-service
+              predicates:
+                - Path=/_docs/user/v3/api-docs
+              filters:
+                - StripPrefix=2
+            - id: venue-service-openapi
+              uri: lb://venue-service
+              predicates:
+                - Path=/_docs/venue/v3/api-docs
+              filters:
+                - StripPrefix=2
+            - id: coupon-service-openapi
+              uri: lb://coupon-service
+              predicates:
+                - Path=/_docs/coupon/v3/api-docs
+              filters:
+                - StripPrefix=2
             # 用户服务路由需先于兜底路由匹配。
             - id: user-service
               uri: lb://user-service
@@ -38,6 +63,19 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+
+springdoc:
+  swagger-ui:
+    urls:
+      - name: order-service
+        url: /_docs/order/v3/api-docs
+      - name: user-service
+        url: /_docs/user/v3/api-docs
+      - name: venue-service
+        url: /_docs/venue/v3/api-docs
+      - name: coupon-service
+        url: /_docs/coupon/v3/api-docs
+    urls-primary-name: order-service
 
 management:
   endpoints:
@@ -71,5 +109,6 @@ security:
       - /swagger-ui/**
       - /swagger-ui.html
       - /v3/api-docs/**
+      - /_docs/**
       - /actuator/health
       - /error

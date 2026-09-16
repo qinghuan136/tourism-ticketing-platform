@@ -96,6 +96,8 @@ Windows 也可以双击 `scripts/start-demo.cmd`；Linux 或 macOS 可以执行�
 sh scripts/start-demo.sh
 ```
 
+两个启动脚本会自动定位到仓库根目录，并在首次运行时由 `.env.example` 创建 `.env`。已有 `.env` 不会被覆盖。
+
 启动过程会自动完成以下工作：
 
 1. 启动 MySQL、Redis、Kafka、Canal 和 Nacos。
@@ -115,8 +117,11 @@ sh scripts/start-demo.sh
 | --- | --- |
 | 游客端 | <http://localhost:3000> |
 | 运营端 | <http://localhost:3001> |
-| Swagger UI | <http://localhost:8080/swagger-ui/index.html> |
-| OpenAPI JSON | <http://localhost:8080/v3/api-docs> |
+| Swagger UI（聚合） | <http://localhost:8080/swagger-ui/index.html> |
+| 订单 OpenAPI JSON | <http://localhost:8080/_docs/order/v3/api-docs> |
+| 用户 OpenAPI JSON | <http://localhost:8080/_docs/user/v3/api-docs> |
+| 景点 OpenAPI JSON | <http://localhost:8080/_docs/venue/v3/api-docs> |
+| 优惠券 OpenAPI JSON | <http://localhost:8080/_docs/coupon/v3/api-docs> |
 
 演示账号的密码均为 `123456`：
 
@@ -146,7 +151,7 @@ docker compose up --build -d
 
 ### 配置覆盖
 
-默认配置用于本地演示。服务间内部接口需要共享令牌，首次启动前请复制示例文件并设置 `INTERNAL_SERVICE_TOKEN`；同一文件也可覆盖端口、数据库密码及地图与 OSS 配置：
+默认配置用于本地演示。服务间内部接口使用同一令牌；启动脚本会生成包含演示令牌的 `.env`。同一文件也可覆盖端口、数据库密码及地图与 OSS 配置：
 
 ```bash
 cp .env.example .env
@@ -156,23 +161,25 @@ cp .env.example .env
 
 ## 本地开发
 
-后端要求 Java 17。确保 MySQL、Redis、Kafka 和 Nacos 已启动，并为各业务服务配置相同的 `INTERNAL_SERVICE_TOKEN` 后，在不同终端分别启动用户服务、票务服务、景点服务、优惠券服务和 Gateway：
+后端要求 Java 17。确保 MySQL、Redis、Kafka 和 Nacos 已启动，并为各业务服务配置相同的 `INTERNAL_SERVICE_TOKEN`。首次运行先安装公共模块，再在不同终端启动订单、用户、景点、优惠券服务和 Gateway：
 
 ```bash
-./mvnw -pl tourism-order-service -am spring-boot:run
-./mvnw -pl tourism-user-service -am spring-boot:run
-./mvnw -pl tourism-venue-service -am spring-boot:run
-./mvnw -pl tourism-coupon-service -am spring-boot:run
+./mvnw install -pl tourism-common,tourism-pojo -am -DskipTests
+./mvnw -pl tourism-order-service spring-boot:run
+./mvnw -pl tourism-user-service spring-boot:run
+./mvnw -pl tourism-venue-service spring-boot:run
+./mvnw -pl tourism-coupon-service spring-boot:run
 ./mvnw -pl tourism-gateway spring-boot:run
 ```
 
 Windows 使用：
 
 ```powershell
-.\mvnw.cmd -pl tourism-order-service -am spring-boot:run
-.\mvnw.cmd -pl tourism-user-service -am spring-boot:run
-.\mvnw.cmd -pl tourism-venue-service -am spring-boot:run
-.\mvnw.cmd -pl tourism-coupon-service -am spring-boot:run
+.\mvnw.cmd install -pl tourism-common,tourism-pojo -am -DskipTests
+.\mvnw.cmd -pl tourism-order-service spring-boot:run
+.\mvnw.cmd -pl tourism-user-service spring-boot:run
+.\mvnw.cmd -pl tourism-venue-service spring-boot:run
+.\mvnw.cmd -pl tourism-coupon-service spring-boot:run
 .\mvnw.cmd -pl tourism-gateway spring-boot:run
 ```
 

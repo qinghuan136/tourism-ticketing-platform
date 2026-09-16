@@ -181,15 +181,20 @@ vars.put('pollCount', '0')</stringProp>
 def responseBody = prev.getResponseDataAsString()
 
 if (responseCode == '202' &amp;&amp; responseBody.contains('PENDING')) {
-    vars.put('claimOutcome', 'ACCEPTED')
-    prev.setSampleLabel('02-claim-ACCEPTED')
+    // 重复点击会返回第一次的 requestId，HTTP 仍是 202/PENDING。
+    // 用 JMeter 全局属性区分首次受理和同 requestId 的幂等响应。
+    def firstRequestId = props.putIfAbsent('couponClaimRequestId', vars.get('requestId'))
+    // 不同 requestId 都是不同用户的首次受理；只有相同 requestId 才是重复点击。
+    vars.put('claimOutcome', firstRequestId == null || firstRequestId != vars.get('requestId')
+            ? 'ACCEPTED' : 'IDEMPOTENT_DUPLICATE')
+    prev.setSampleLabel('02-claim-' + vars.get('claimOutcome'))
     return
 }
 
-if (responseCode == '409' &amp;&amp; responseBody.contains('优惠券已抢完')) {
-    vars.put('claimOutcome', 'SOLD_OUT')
+if (responseCode == '409' &amp;&amp; (responseBody.contains('优惠券已抢完') || responseBody.contains('已领取'))) {
+    vars.put('claimOutcome', responseBody.contains('优惠券已抢完') ? 'SOLD_OUT' : 'DUPLICATE')
     vars.put('claimDone', 'true')
-    prev.setSampleLabel('02-claim-SOLD_OUT')
+    prev.setSampleLabel('02-claim-' + vars.get('claimOutcome'))
     prev.setSuccessful(true)
     return
 }

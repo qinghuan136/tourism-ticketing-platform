@@ -1,0 +1,12 @@
+logging:
+  level:
+    root: INFO
+    com.qinghuan: INFO
+
+# 规则仍由应用内 GatewayRuleManager 初始化，不使用 Sentinel Nacos DataSource。
+app:
+  sentinel:
+    gateway:
+      order-create-qps: 30
+      coupon-claim-qps: 100
+      auth-login-qps: 20

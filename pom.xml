@@ -29,7 +29,11 @@
     <modules>
         <module>tourism-common</module>
         <module>tourism-pojo</module>
-        <module>tourism-server</module>
+        <module>tourism-order-service</module>
+        <module>tourism-coupon-service</module>
+        <module>tourism-user-service</module>
+        <module>tourism-gateway</module>
+        <module>tourism-venue-service</module>
     </modules>
 
     <build>

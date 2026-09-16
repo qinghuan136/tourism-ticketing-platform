@@ -1,0 +1,63 @@
+spring:
+  cloud:
+    nacos:
+      config:
+        # 单元测试不连接 Nacos；生产配置仍通过 spring.config.import 加载。
+        import-check:
+          enabled: false
+
+  task:
+    scheduling:
+      # H2 上未执行 MySQL Flyway 脚本，测试上下文不启动订单补偿任务。
+      enabled: false
+
+  # 单元/上下文测试使用内存数据库，不依赖开发者本机的 MySQL。
+  datasource:
+    url: jdbc:h2:mem:tourism_test;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  flyway:
+    # V1 脚本使用 MySQL 方言；数据库迁移集成测试应改用 MySQL Testcontainers。
+    enabled: false
+
+logging:
+  level:
+    root: WARN
+    com.qinghuan: INFO
+
+security:
+  jwt:
+    # 32 字节测试密钥的 Base64 编码，仅用于测试环境。
+    secret: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    issuer: tourism-ticketing-platform-test
+    access-token-ttl: 2h
+
+aliyun:
+  oss:
+    endpoint: https://oss-cn-hangzhou.aliyuncs.com
+    region: cn-hangzhou
+    access-key-id: test-access-key-id
+    access-key-secret: test-access-key-secret
+    bucket-name: tourism-test
+
+app:
+  amap:
+    base-url: https://restapi.amap.com
+    key: test-amap-key
+  canal:
+    enabled: false
+  venue-geo:
+    # 普通单元测试不依赖本机 Redis，GEO 行为由独立测试覆盖。
+    preload-enabled: false
+  venue-bloom:
+    # 布隆过滤器行为由独立单元测试覆盖，不在上下文测试中访问 Redis。
+    preload-enabled: false
+
+mybatis:
+  # 测试 application.yml 会遮住主配置，因此需要显式加载 Mapper XML。
+  mapper-locations: classpath*:mapper/**/*.xml
+  type-aliases-package: com.qinghuan.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true

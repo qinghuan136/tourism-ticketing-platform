@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qinghuan.booking.BookingInventoryTccMapper">
+
+    <insert id="insert">
+        insert into booking_inventory_tcc_operation (order_id, session_id, status)
+        values (#{orderId}, #{sessionId}, #{status})
+    </insert>
+
+    <update id="updateStatus">
+        update booking_inventory_tcc_operation
+        set status = #{newStatus}, updated_at = CURRENT_TIMESTAMP
+        where order_id = #{orderId}
+          and status = #{oldStatus}
+    </update>
+
+    <select id="listPending" resultType="com.qinghuan.pojo.entity.BookingInventoryTccOperation">
+        select order_id, session_id, status, created_at, updated_at
+        from booking_inventory_tcc_operation
+        where status in ('CONFIRMING', 'CANCELING')
+        order by updated_at
+    </select>
+</mapper>

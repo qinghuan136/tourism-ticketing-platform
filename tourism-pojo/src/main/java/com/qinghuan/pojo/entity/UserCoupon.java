@@ -14,6 +14,8 @@ public class UserCoupon extends BaseEntity {
     private Long activityId;
     private Long userId;
     private Long venueId;
+    /** 领取时继承活动的景点名称快照。 */
+    private String venueNameSnapshot;
     /** 以下规则字段均为领取时快照，不随活动后续状态变化。 */
     private String couponName;
     private BigDecimal thresholdAmount;
@@ -24,4 +26,7 @@ public class UserCoupon extends BaseEntity {
     private UserCouponStatus status;
     private LocalDateTime acquiredAt;
     private LocalDateTime usedAt;
+    /** 当前锁券或已使用操作所属的订单，用于跨服务幂等。 */
+    private Long lockedOrderId;
+    private Long usedOrderId;
 }

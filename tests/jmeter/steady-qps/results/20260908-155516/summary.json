@@ -1,0 +1,26 @@
+[
+  {
+    "Concurrency": 50,
+    "Samples": 61533,
+    "SteadyQps": 1025.55,
+    "AvgMs": 48.51,
+    "P95Ms": 80,
+    "Errors": 0
+  },
+  {
+    "Concurrency": 100,
+    "Samples": 46124,
+    "SteadyQps": 768.73,
+    "AvgMs": 129.59,
+    "P95Ms": 222,
+    "Errors": 0
+  },
+  {
+    "Concurrency": 200,
+    "Samples": 43625,
+    "SteadyQps": 727.08,
+    "AvgMs": 274.1,
+    "P95Ms": 495,
+    "Errors": 0
+  }
+]

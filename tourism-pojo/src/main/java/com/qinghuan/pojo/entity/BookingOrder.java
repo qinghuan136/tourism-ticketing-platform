@@ -5,7 +5,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Getter
 @Setter
@@ -14,6 +16,15 @@ public class BookingOrder extends BaseEntity {
     private String orderNo;
     private Long userId;
     private Long sessionId;
+    /** 下单时写入的场次和景点快照，订单查询不再依赖场次、景点服务的数据表。 */
+    private Long venueId;
+    private String venueNameSnapshot;
+    private String venueAddressSnapshot;
+    private LocalDate visitDate;
+    private LocalTime startTime;
+    private LocalTime endTime;
+    private String purchaserNameSnapshot;
+    private String purchaserPhoneSnapshot;
     private Integer quantity;
     /** 本单使用的游客优惠券；为空表示未使用优惠券。 */
     private Long userCouponId;

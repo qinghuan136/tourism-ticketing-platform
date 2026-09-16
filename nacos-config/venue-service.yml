@@ -1,0 +1,12 @@
+logging:
+  level:
+    root: INFO
+    com.qinghuan: INFO
+
+app:
+  amap:
+    base-url: https://restapi.amap.com
+  venue-geo:
+    preload-enabled: true
+  venue-bloom:
+    preload-enabled: true

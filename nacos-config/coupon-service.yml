@@ -1,0 +1,11 @@
+logging:
+  level:
+    root: INFO
+    com.qinghuan: INFO
+
+app:
+  coupon:
+    claim-outbox:
+      pending-millis: 30000
+      fixed-delay-millis: 10000
+      batch-size: 100

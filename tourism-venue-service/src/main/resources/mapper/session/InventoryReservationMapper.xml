@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qinghuan.session.InventoryReservationMapper">
+
+    <insert id="insertOrderIfAbsent">
+        insert ignore into inventory_reservation_order (order_id, session_id, status)
+        values (#{orderId}, #{sessionId}, #{status})
+    </insert>
+
+    <select id="findOrderForUpdate" resultType="com.qinghuan.pojo.entity.InventoryReservationOrder">
+        select order_id, session_id, status, created_at, updated_at
+        from inventory_reservation_order
+        where order_id = #{orderId}
+        for update
+    </select>
+
+    <select id="listReservationsForUpdate" resultType="com.qinghuan.pojo.entity.InventoryReservation">
+        select order_id, session_ticket_type_id, quantity, status, created_at, updated_at
+        from inventory_reservation
+        where order_id = #{orderId}
+        order by session_ticket_type_id
+        for update
+    </select>
+
+    <insert id="insertReservation">
+        insert into inventory_reservation
+            (order_id, session_ticket_type_id, quantity, status)
+        values (#{orderId}, #{sessionTicketTypeId}, #{quantity}, #{status})
+    </insert>
+
+    <update id="updateOrderStatus">
+        update inventory_reservation_order
+        set status = #{status}, updated_at = CURRENT_TIMESTAMP
+        where order_id = #{orderId}
+    </update>
+
+    <update id="updateReservationStatus">
+        update inventory_reservation
+        set status = #{status}, updated_at = CURRENT_TIMESTAMP
+        where order_id = #{orderId}
+    </update>
+
+    <!-- Cancel 在 Try 之前到达时写入屏障，后续同一 orderId 的 Try 会被拒绝。 -->
+    <insert id="insertCancelMarkerIfAbsent">
+        insert ignore into inventory_reservation_order (order_id, status)
+        values (#{orderId}, 'CANCELED')
+    </insert>
+</mapper>

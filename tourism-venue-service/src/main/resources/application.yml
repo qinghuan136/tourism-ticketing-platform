@@ -1,0 +1,103 @@
+spring:
+  application:
+    name: venue-service
+
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        group: ${NACOS_CONFIG_GROUP:TOURISM}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        # 本机多网卡环境可通过 NACOS_DISCOVERY_IP 指定可被其他服务访问的注册地址。
+        ip: ${NACOS_DISCOVERY_IP:}
+    openfeign:
+      micrometer:
+        enabled: true
+
+  config:
+    import: "optional:nacos:venue-service.yml?refreshEnabled=true"
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tourism_ticketing_platform}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:${local.db-password:}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 表结构仍由 tourism-order-service 的 Flyway 脚本维护。
+  flyway:
+    enabled: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      timeout: ${REDIS_TIMEOUT:3s}
+
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:10MB}
+
+server:
+  port: ${SERVER_PORT:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      probability: 1.0
+
+info:
+  app:
+    name: ${spring.application.name}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [${spring.application.name}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] %-5level %logger{36} - %msg%n"
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.qinghuan.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+    issuer: tourism-ticketing-platform
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:12h}
+    excluded-paths:
+      - /public/**
+      # 内部端点不经 Gateway；容器部署时 venue-service 不暴露宿主机端口。
+      - /internal/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /v3/api-docs/**
+      - /actuator/health
+      - /error
+
+internal:
+  auth:
+    token: ${INTERNAL_SERVICE_TOKEN:}
+
+aliyun:
+  oss:
+    endpoint: ${OSS_ENDPOINT:https://oss-cn-hangzhou.aliyuncs.com}
+    region: ${OSS_REGION:cn-hangzhou}
+    access-key-id: ${OSS_ACCESS_KEY_ID:YOUR_OSS_ACCESS_KEY_ID}
+    access-key-secret: ${OSS_ACCESS_KEY_SECRET:YOUR_OSS_ACCESS_KEY_SECRET}
+    bucket-name: ${OSS_BUCKET_NAME:YOUR_OSS_BUCKET_NAME}
+
+app:
+  amap:
+    key: ${AMAP_WEB_SERVICE_KEY:YOUR_AMAP_WEB_SERVICE_KEY}

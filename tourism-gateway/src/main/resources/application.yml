@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: tourism-gateway
+
+  config:
+    import: "optional:nacos:gateway.yml?refreshEnabled=true"
+
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        group: ${NACOS_CONFIG_GROUP:TOURISM}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+    gateway:
+      server:
+        webflux:
+          routes:
+            # 用户服务路由需先于兜底路由匹配。
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/auth/**,/users/**,/visitors/**,/tourist/visitors/**,/operator/staff/**
+            - id: coupon-service
+              uri: lb://coupon-service
+              predicates:
+                - Path=/operator/coupon-activities/**,/tourist/coupon-activities/**,/tourist/coupon-claims/**,/tourist/coupons/**,/public/venues/*/coupon-activities
+            # 景点公开目录及运营端场次、票种管理归属 venue-service。
+            # 放在 order-service 的兜底路由之前，避免被错误转发。
+            - id: venue-service
+              uri: lb://venue-service
+              predicates:
+                - Path=/public/venues/**,/operator/venue/**,/operator/sessions/**,/operator/ticket-types/**
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/**
+
+server:
+  port: ${SERVER_PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      probability: 1.0
+
+info:
+  app:
+    name: ${spring.application.name}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [${spring.application.name}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] %-5level %logger{36} - %msg%n"
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+    issuer: tourism-ticketing-platform
+  gateway:
+    whitelist:
+      - /auth/login
+      - /auth/register
+      - /public/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /v3/api-docs/**
+      - /actuator/health
+      - /error

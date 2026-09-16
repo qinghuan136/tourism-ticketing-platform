@@ -20,4 +20,8 @@ public class LockConstant {
     /** 退款对账任务的订单级锁，避免多实例重复请求退款平台。 */
     public static final String LOCK_REFUND_RECONCILE_PREFIX =
             "lock:refund:reconcile:";
+
+    /** 库存 TCC 二阶段补偿的订单级锁，避免多实例同时重复调用。 */
+    public static final String LOCK_INVENTORY_TCC_PREFIX =
+            "lock:inventory:tcc:";
 }

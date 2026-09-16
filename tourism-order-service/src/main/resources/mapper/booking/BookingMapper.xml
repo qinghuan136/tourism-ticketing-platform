@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qinghuan.booking.BookingMapper">
+
+    <!-- 下单时写入场次与景点快照，订单查询不依赖 venue-service 的数据表。 -->
+    <sql id="orderSummaryColumns">
+        bo.id, bo.order_no, bo.venue_name_snapshot as venue_name, bo.session_id,
+        bo.visit_date, bo.start_time, bo.end_time, bo.quantity,
+        bo.user_coupon_id, bo.original_amount, bo.discount_amount,
+        bo.total_amount, bo.status, bo.expire_at, bo.created_at
+    </sql>
+
+    <!-- 详情中的状态时间统一来自订单头，明细和票券由后续单独查询。 -->
+    <sql id="orderDetailExtraColumns">
+        bo.payment_no, bo.paid_at, bo.cancelled_at, bo.closed_at,
+        bo.completed_at, bo.refund_no, bo.refund_requested_at, bo.refund_at
+    </sql>
+    <!--    通用更新-->
+    <update id="updateOrder">
+        update booking_order
+        <set>
+            <if test="order.status != null">
+                status = #{order.status},
+            </if>
+            <if test="order.paymentNo != null">
+                payment_no = #{order.paymentNo},
+            </if>
+            <if test="order.paidAt != null">
+                paid_at = #{order.paidAt},
+            </if>
+            <if test="order.cancelledAt != null">
+                cancelled_at = #{order.cancelledAt},
+            </if>
+            <if test="order.closedAt != null">
+                closed_at = #{order.closedAt},
+            </if>
+            <if test="order.completedAt != null">
+                completed_at = #{order.completedAt},
+            </if>
+            <if test="order.refundAt != null">
+                refund_at = #{order.refundAt},
+            </if>
+            <if test="order.refundNo != null">
+                refund_no = #{order.refundNo},
+            </if>
+            <if test="order.refundRequestedAt != null">
+                refund_requested_at = #{order.refundRequestedAt},
+            </if>
+            <if test="order.expireAt != null">
+                expire_at = #{order.expireAt},
+            </if>
+            <if test="order.updatedAt != null">
+                updated_at = #{order.updatedAt},
+            </if>
+
+        </set>
+        where id = #{order.id}
+        and status = #{oldStatus}
+    </update>
+
+    <!-- 第三方明确失败后允许用户重新发起一次新的退款。 -->
+    <update id="resetFailedRefund">
+        update booking_order
+        set status = #{newStatus},
+            refund_no = null,
+            refund_requested_at = null,
+            updated_at = CURRENT_TIMESTAMP
+        where id = #{orderId}
+          and status = 'REFUNDING'
+    </update>
+
+    <!-- 状态与支付期限一并放进更新条件，由数据库裁决支付、取消和超时任务的竞争。 -->
+    <update id="updatePaidOrder">
+        update booking_order
+        set status = #{order.status},
+            payment_no = #{order.paymentNo},
+            paid_at = #{order.paidAt}
+        where id = #{order.id}
+          and status = #{oldStatus}
+          and expire_at &gt; #{order.paidAt}
+    </update>
+
+    <!-- 显式声明摘要字段映射，避免查询结果依赖全局下划线转驼峰配置。 -->
+    <resultMap id="orderSummaryResultMap" type="com.qinghuan.pojo.vo.OrderSummaryVO">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="venueName" column="venue_name"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="visitDate" column="visit_date"/>
+        <result property="startTime" column="start_time"/>
+        <result property="endTime" column="end_time"/>
+        <result property="quantity" column="quantity"/>
+        <result property="userCouponId" column="user_coupon_id"/>
+        <result property="originalAmount" column="original_amount"/>
+        <result property="discountAmount" column="discount_amount"/>
+        <result property="totalAmount" column="total_amount"/>
+        <result property="status" column="status"/>
+        <result property="expireAt" column="expire_at"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <!-- 详情继承摘要字段，再补充购买人及各状态时间。 -->
+    <resultMap id="orderDetailResultMap"
+               type="com.qinghuan.pojo.vo.OrderDetailVO"
+               extends="orderSummaryResultMap">
+        <result property="purchaserUserId" column="purchaser_user_id"/>
+        <result property="purchaserName" column="purchaser_name"/>
+        <result property="purchaserPhone" column="purchaser_phone"/>
+        <result property="paymentNo" column="payment_no"/>
+        <result property="refundNo" column="refund_no"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="cancelledAt" column="cancelled_at"/>
+        <result property="closedAt" column="closed_at"/>
+        <result property="completedAt" column="completed_at"/>
+        <result property="refundRequestedAt" column="refund_requested_at"/>
+        <result property="refundAt" column="refund_at"/>
+    </resultMap>
+
+    <!--
+        订单明细与票券是一对零或一关系。
+        notNullColumn 保证待支付订单没有票券时 ticket 字段保持为 null。
+    -->
+    <resultMap id="orderItemResultMap" type="com.qinghuan.pojo.vo.OrderItemVO">
+        <id property="id" column="order_item_id"/>
+        <result property="visitorId" column="visitor_id"/>
+        <result property="visitorName" column="visitor_name"/>
+        <result property="visitorIdType" column="visitor_id_type"/>
+        <result property="visitorIdNumber" column="visitor_id_number"/>
+        <result property="sessionTicketTypeId" column="session_ticket_type_id"/>
+        <result property="ticketTypeName" column="ticket_type_name"/>
+        <result property="unitPrice" column="unit_price"/>
+        <association property="ticket"
+                     javaType="com.qinghuan.pojo.vo.TicketSummaryVO"
+                     notNullColumn="ticket_id">
+            <id property="id" column="ticket_id"/>
+            <result property="ticketCode" column="ticket_code"/>
+            <result property="status" column="ticket_status"/>
+            <result property="validFrom" column="valid_from"/>
+            <result property="validUntil" column="valid_until"/>
+            <result property="verifiedAt" column="verified_at"/>
+        </association>
+    </resultMap>
+
+    <!-- 游客列表查询始终携带当前登录 userId，状态只是额外筛选条件。 -->
+    <select id="listMyOrders" resultMap="orderSummaryResultMap">
+        select <include refid="orderSummaryColumns"/>
+        from booking_order bo
+        where bo.user_id = #{userId}
+        <if test="status != null">
+            and bo.status = #{status}
+        </if>
+        order by bo.created_at desc, bo.id desc
+    </select>
+
+    <!-- 运营端查询先限制景点，再应用订单号、场次、日期和状态条件。 -->
+    <select id="listVenueOrders" resultMap="orderSummaryResultMap">
+        select <include refid="orderSummaryColumns"/>
+        from booking_order bo
+        where bo.venue_id = #{venueId}
+        <if test="query.status != null">
+            and bo.status = #{query.status}
+        </if>
+        <if test="query.orderNo != null and query.orderNo != ''">
+            and bo.order_no = #{query.orderNo}
+        </if>
+        <if test="query.sessionId != null">
+            and bo.session_id = #{query.sessionId}
+        </if>
+        <if test="query.visitDate != null">
+            and bo.visit_date = #{query.visitDate}
+        </if>
+        order by bo.created_at desc, bo.id desc
+    </select>
+
+    <!-- 订单 ID 与当前游客必须同时匹配，跨账号访问按不存在处理。 -->
+    <select id="findMyOrderDetail" resultMap="orderDetailResultMap">
+        select <include refid="orderSummaryColumns"/>,
+               <include refid="orderDetailExtraColumns"/>
+        from booking_order bo
+        where bo.id = #{orderId}
+          and bo.user_id = #{userId}
+    </select>
+
+    <!-- 运营端详情通过场次所属景点限制范围，并补充下单游客概要。 -->
+    <select id="findVenueOrderDetail" resultMap="orderDetailResultMap">
+        select <include refid="orderSummaryColumns"/>,
+               <include refid="orderDetailExtraColumns"/>,
+               bo.user_id as purchaser_user_id,
+               bo.purchaser_name_snapshot as purchaser_name,
+               bo.purchaser_phone_snapshot as purchaser_phone
+        from booking_order bo
+        where bo.id = #{orderId}
+          and bo.venue_id = #{venueId}
+    </select>
+
+    <!-- 单次联表返回全部订单明细和电子票，避免详情接口产生 N+1 查询。 -->
+    <select id="listOrderItems" resultMap="orderItemResultMap">
+        select item.id as order_item_id, item.visitor_id,
+               item.visitor_name, item.visitor_id_type, item.visitor_id_number,
+               item.session_ticket_type_id, item.ticket_type_name, item.unit_price,
+               t.id as ticket_id, t.ticket_code, t.status as ticket_status,
+               t.valid_from, t.valid_until, t.verified_at
+        from booking_order_item item
+        left join ticket t on t.order_item_id = item.id
+        where item.order_id = #{orderId}
+        order by item.id
+    </select>
+    <select id="findOrderByOrderId" resultType="com.qinghuan.pojo.entity.BookingOrder">
+        select * from booking_order where id = #{id}
+    </select>
+
+    <!-- 取消、超时关闭和退款已释放占位，允许相同证件身份重新购买当前场次。 -->
+    <select id="findConflictingOrdersBySessionAndFingerprints"
+            resultType="com.qinghuan.pojo.entity.BookingOrder">
+        select distinct bo.*
+        from booking_order bo
+        join booking_order_item boi on boi.order_id = bo.id
+        where bo.session_id = #{sessionId}
+          and bo.status in ('PENDING_PAYMENT', 'PAID', 'REFUNDING', 'COMPLETED')
+          and boi.visitor_fingerprint in
+        <foreach collection="fingerprints" item="fingerprint"
+                 open="(" close=")" separator=",">
+            #{fingerprint}
+        </foreach>
+    </select>
+
+    <select id="listTimeoutOrders" resultType="com.qinghuan.pojo.entity.BookingOrder">
+        select *
+        from booking_order
+        where status = 'PENDING_PAYMENT'
+          and expire_at <![CDATA[<=]]> #{timeout}
+    </select>
+
+    <select id="listRefundingOrders" resultType="com.qinghuan.pojo.entity.BookingOrder">
+        select *
+        from booking_order
+        where status = 'REFUNDING'
+          and refund_requested_at &lt;= #{requestedBefore}
+        order by refund_requested_at, id
+        limit 100
+    </select>
+
+    <update id="completePaidOrders">
+        update booking_order bo
+        set bo.status = 'COMPLETED',
+            bo.completed_at = #{now},
+            bo.updated_at = CURRENT_TIMESTAMP
+        where bo.status = 'PAID'
+          and timestamp(bo.visit_date, bo.end_time) &lt;= #{now}
+    </update>
+
+    <!-- 订单 ID 在 TCC Try 前已生成，数据库仅负责审计时间。 -->
+    <insert id="insertOrder">
+        insert into booking_order
+            (id, order_no, user_id, session_id, venue_id, venue_name_snapshot,
+             venue_address_snapshot, visit_date, start_time, end_time,
+             purchaser_name_snapshot, purchaser_phone_snapshot, quantity, user_coupon_id,
+             original_amount, discount_amount, total_amount, status,
+             payment_no, expire_at, paid_at, cancelled_at, closed_at, completed_at, refund_at)
+        values
+            (#{id}, #{orderNo}, #{userId}, #{sessionId}, #{venueId}, #{venueNameSnapshot},
+             #{venueAddressSnapshot}, #{visitDate}, #{startTime}, #{endTime},
+             #{purchaserNameSnapshot}, #{purchaserPhoneSnapshot}, #{quantity}, #{userCouponId},
+             #{originalAmount}, #{discountAmount}, #{totalAmount}, #{status},
+             #{paymentNo}, #{expireAt}, #{paidAt}, #{cancelledAt}, #{closedAt}, #{completedAt}, #{refundAt})
+    </insert>
+
+    <!-- 明细字段均为下单时快照，后续参观人或票种资料变化不会修改历史订单。 -->
+    <insert id="insertOrderItems">
+        insert into booking_order_item
+            (order_id, visitor_id, session_ticket_type_id, visitor_name,
+             visitor_id_type, visitor_id_number, visitor_fingerprint, ticket_type_name, unit_price)
+        values
+        <foreach collection="items" item="item" separator=",">
+            (#{item.orderId}, #{item.visitorId}, #{item.sessionTicketTypeId},
+             #{item.visitorName}, #{item.visitorIdType}, #{item.visitorIdNumber}, #{item.visitorFingerprint},
+             #{item.ticketTypeName}, #{item.unitPrice})
+        </foreach>
+    </insert>
+
+    <select id="hasOrdersForSession" resultType="boolean">
+        select exists(select 1 from booking_order where session_id = #{sessionId})
+    </select>
+
+    <select id="hasUnresolvedOrdersForSession" resultType="boolean">
+        select exists(
+            select 1 from booking_order
+            where session_id = #{sessionId}
+              and status in ('PENDING_PAYMENT', 'PAID', 'REFUNDING')
+        )
+    </select>
+
+</mapper>

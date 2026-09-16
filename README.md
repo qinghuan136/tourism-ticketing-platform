@@ -2,7 +2,7 @@
 
 一个面向多景点运营场景的预约、购票与入场管理平台。系统为游客提供景点浏览、场次预约、优惠券领取、订单和电子票管理，为景点运营方提供场次、票种、工作人员、核销和经营数据管理。不同运营账号的数据按所属景点隔离。
 
-项目包含可独立运行的游客端、运营端和 Spring Boot 服务，并提供完整的容器化运行环境与动态演示数据。
+项目包含可独立运行的游客端、运营端及 Spring Cloud 微服务，并提供完整的容器化运行环境与动态演示数据。
 
 ## 功能概览
 
@@ -31,34 +31,51 @@
 
 - 订单库存使用数据库条件更新和事务控制，避免并发超卖；同场次参观人约束使用分布式锁串联校验与下单事务。
 - 优惠券抢券通过 Redis Lua 完成资格校验、库存预扣和一人一券，Kafka 异步落库，并配有 Redis Outbox、消费幂等、重试和死信补偿。
-- 景点与场次静态信息采用 Caffeine、Redis 两级缓存；缓存重建使用 Redisson 锁缓解击穿，Canal 订阅 MySQL Binlog 并通过 Redis Pub/Sub 通知多实例失效本地缓存。
+- 景点与场次静态信息采用 Caffeine、Redis 两级缓存；缓存重建使用 Redisson 锁缓解击穿。
 - 景点附近查询使用 Redis GEO；不存在的景点 ID 通过布隆过滤器提前拦截。
 - 订单与场次使用显式状态事件管理流转；退款采用 `PAID -> REFUNDING -> REFUNDED` 分阶段确认，并由定时任务对账未完成退款。
 - 数据库结构由 Flyway 管理，HTTP 接口通过 OpenAPI 描述。
+- Gateway 在统一入口校验外部 JWT 并拒绝访问 `/internal/**`；服务间内部接口使用 `X-Service-Token`，下游继续校验原始 JWT 并建立用户上下文。
 
 ## 系统结构
 
 ```mermaid
 flowchart LR
     T[游客端 Vue] --> N1[Nginx]
-    O[运营端 Vue] --> N2[Nginx]
-    N1 --> A[Spring Boot API]
-    N2 --> A
-    A --> M[(MySQL)]
-    A --> R[(Redis)]
-    A --> K[Kafka]
-    K --> A
-    M --> C[Canal]
-    C --> A
-    A -. 可选 .-> OSS[对象存储]
-    A -. 可选 .-> MAP[地图服务]
+    OP[运营端 Vue] --> N2[Nginx]
+    N1 --> G[Spring Cloud Gateway]
+    N2 --> G
+    G --> OS[order-service]
+    G --> U[user-service]
+    G --> V[venue-service]
+    G --> C[coupon-service]
+    OS --> U
+    OS --> V
+    OS --> C
+    OS --> M[(MySQL)]
+    U --> M
+    V --> M
+    C --> M
+    OS --> R[(Redis)]
+    U --> R
+    V --> R
+    C --> R
+    C --> K[Kafka]
+    K --> C
+    OS --> N[Nacos]
+    U --> N
+    V --> N
+    C --> N
+    G --> N
+    V -. 可选 .-> OSS[对象存储]
+    V -. 可选 .-> MAP[地图服务]
 ```
 
 ## 技术栈
 
-- 后端：Java、Spring Boot、MyBatis、Flyway、MySQL
+- 后端：Java、Spring Boot、Spring Cloud Gateway、OpenFeign、Nacos、MyBatis、Flyway、MySQL
 - 缓存与并发：Redis、Caffeine、Redisson、Lua
-- 消息与一致性：Kafka、Canal、Redis Pub/Sub
+- 消息与一致性：Kafka、Redis Pub/Sub
 - 前端：Vue 3、TypeScript、Vite、Pinia、Element Plus
 - 工程化：Maven、Docker Compose、OpenAPI、JUnit、JMeter
 
@@ -69,6 +86,7 @@ flowchart LR
 准备 Docker 与 Docker Compose，在仓库根目录执行：
 
 ```bash
+cp .env.example .env
 docker compose up --build -d
 ```
 
@@ -80,10 +98,16 @@ sh scripts/start-demo.sh
 
 启动过程会自动完成以下工作：
 
-1. 启动 MySQL、Redis、Kafka 和 Canal。
-2. 构建并启动 Spring Boot 后端。
-3. 通过 Flyway 创建数据库结构并导入演示数据。
+1. 启动 MySQL、Redis、Kafka、Canal 和 Nacos。
+2. 将 `nacos-config/` 中不含敏感信息的服务配置发布到 Nacos 的 `TOURISM` Group。
+3. 订单服务通过 Flyway 创建数据库结构并导入演示数据，再启动用户、景点、优惠券服务与 Gateway。
 4. 构建游客端和运营端，并由 Nginx 提供页面及 API 代理。
+
+`nacos-config-init` 是一次性初始化任务，状态为 `Exited (0)` 表示配置发布完成，并非启动失败。若仅修改了仓库中的 Nacos 配置，可以在 Nacos 已运行时执行：
+
+```powershell
+.\nacos-config\publish-nacos-config.ps1
+```
 
 服务入口：
 
@@ -122,7 +146,7 @@ docker compose up --build -d
 
 ### 配置覆盖
 
-默认配置用于本地演示，无需预先创建 `.env`。如需修改端口、数据库密码或接入地图与 OSS，可复制示例文件：
+默认配置用于本地演示。服务间内部接口需要共享令牌，首次启动前请复制示例文件并设置 `INTERNAL_SERVICE_TOKEN`；同一文件也可覆盖端口、数据库密码及地图与 OSS 配置：
 
 ```bash
 cp .env.example .env
@@ -132,16 +156,24 @@ cp .env.example .env
 
 ## 本地开发
 
-后端要求 Java 17。确保 MySQL、Redis 和 Kafka 已启动并设置 `DB_PASSWORD`、`JWT_SECRET` 等环境变量后，在仓库根目录执行：
+后端要求 Java 17。确保 MySQL、Redis、Kafka 和 Nacos 已启动，并为各业务服务配置相同的 `INTERNAL_SERVICE_TOKEN` 后，在不同终端分别启动用户服务、票务服务、景点服务、优惠券服务和 Gateway：
 
 ```bash
-./mvnw -pl tourism-server -am spring-boot:run
+./mvnw -pl tourism-order-service -am spring-boot:run
+./mvnw -pl tourism-user-service -am spring-boot:run
+./mvnw -pl tourism-venue-service -am spring-boot:run
+./mvnw -pl tourism-coupon-service -am spring-boot:run
+./mvnw -pl tourism-gateway spring-boot:run
 ```
 
 Windows 使用：
 
 ```powershell
-.\mvnw.cmd -pl tourism-server -am spring-boot:run
+.\mvnw.cmd -pl tourism-order-service -am spring-boot:run
+.\mvnw.cmd -pl tourism-user-service -am spring-boot:run
+.\mvnw.cmd -pl tourism-venue-service -am spring-boot:run
+.\mvnw.cmd -pl tourism-coupon-service -am spring-boot:run
+.\mvnw.cmd -pl tourism-gateway spring-boot:run
 ```
 
 两个前端应用独立运行：
@@ -166,7 +198,11 @@ Vite 开发服务器会将 `/api` 请求代理到 `http://localhost:8080`。
 tourism-ticketing-platform/
 ├── tourism-common/       # 公共响应、异常、常量与工具
 ├── tourism-pojo/         # Entity、DTO、VO 与业务枚举
-├── tourism-server/       # Spring Boot 服务与 Flyway 迁移
+├── tourism-order-service/ # 订单、票务、核销、统计与 Flyway 迁移
+├── tourism-user-service/ # 用户、认证与参观人服务
+├── tourism-venue-service/ # 景点、场次、票种与目录服务
+├── tourism-coupon-service/ # 优惠券活动、抢券、券状态与 Kafka 消费
+├── tourism-gateway/      # 统一入口与服务路由
 ├── frontend/
 │   ├── tourist/          # 游客端 Vue 应用
 │   └── operator/         # 运营端 Vue 应用
@@ -189,11 +225,11 @@ tourism-ticketing-platform/
 ./mvnw test
 
 # 后端打包
-./mvnw -pl tourism-server -am package -DskipTests
+./mvnw -pl tourism-order-service -am package -DskipTests
 
 # 前端类型检查与构建
 cd frontend/tourist && npm run type-check && npm run build
 cd frontend/operator && npm run type-check && npm run build
 ```
 
-项目运行产生的密码、令牌、云服务密钥与本地 `.env` 文件不应提交到仓库。正式部署时应替换 Compose 中的演示凭据，并按部署环境调整数据库、Redis、Kafka 与 Canal 配置。
+项目运行产生的密码、令牌、云服务密钥与本地 `.env` 文件不应提交到仓库。正式部署时应替换 Compose 中的演示凭据，并按部署环境调整数据库、Redis、Kafka 与 Nacos 配置。

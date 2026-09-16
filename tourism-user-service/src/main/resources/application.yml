@@ -1,0 +1,86 @@
+spring:
+  application:
+    name: user-service
+
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        group: ${NACOS_CONFIG_GROUP:TOURISM}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+
+  # 本机专用的账号密码仍可通过根目录或上级目录配置文件提供。
+  config:
+    import:
+      - optional:file:./application-local.yml
+      - optional:file:../application-local.yml
+      - optional:nacos:user-service.yml?refreshEnabled=true
+
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tourism_ticketing_platform}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:${local.db-password:}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # 当前阶段与订单服务共享数据库，表结构继续由 tourism-order-service 管理。
+  flyway:
+    enabled: false
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      timeout: ${REDIS_TIMEOUT:3s}
+
+server:
+  port: ${SERVER_PORT:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      probability: 1.0
+
+info:
+  app:
+    name: ${spring.application.name}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [${spring.application.name}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] %-5level %logger{36} - %msg%n"
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.qinghuan.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    cache-enabled: false
+
+# 与其他服务保持同一 JWT 协议，避免迁移期间令牌不兼容。
+security:
+  jwt:
+    secret: ${JWT_SECRET:dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+    issuer: tourism-ticketing-platform
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:12h}
+    excluded-paths:
+      - /auth/login
+      - /auth/register
+      - /public/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /v3/api-docs/**
+      - /actuator/health
+      - /error
+
+internal:
+  auth:
+    token: ${INTERNAL_SERVICE_TOKEN:}

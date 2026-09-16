@@ -1,0 +1,50 @@
+spring:
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
+      client:
+        # OpenFeign 5.0 需要显式开启，Nacos 更新 timeout 后才会重建 Options。
+        refresh-enabled: true
+        config:
+          # 保持 Spring Cloud OpenFeign 默认的 NEVER_RETRY；TCC 二阶段重试仍由业务补偿任务负责。
+          user-service:
+            connect-timeout: 1000
+            read-timeout: 2000
+          venue-service:
+            connect-timeout: 1000
+            read-timeout: 3000
+          coupon-service:
+            connect-timeout: 1000
+            read-timeout: 2000
+    circuitbreaker:
+      sentinel:
+        enabled: true
+
+logging:
+  level:
+    root: INFO
+    com.qinghuan: DEBUG
+    org.flywaydb: DEBUG
+    org.springframework.boot.flyway: DEBUG
+
+# 仍由应用内规则初始化，不使用 Sentinel Nacos DataSource。
+app:
+  sentinel:
+    feign:
+      venue-exception-ratio: 0.5
+      coupon-exception-ratio: 0.6
+  refund:
+    gateway: ${REFUND_GATEWAY:simulated}
+    pending-seconds: ${REFUND_PENDING_SECONDS:30}
+    reconcile-cron: "${REFUND_RECONCILE_CRON:15 * * * * *}"
+  inventory-tcc:
+    retry-delay: 10000
+  coupon:
+    order-tcc:
+      retry-delay: 10000
+
+# 用于最小动态刷新验证，不承载业务数据。
+tourism:
+  test:
+    value: 10

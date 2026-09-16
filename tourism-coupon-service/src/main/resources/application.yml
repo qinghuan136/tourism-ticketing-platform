@@ -1,0 +1,102 @@
+spring:
+  application:
+    name: coupon-service
+  cloud:
+    nacos:
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        group: ${NACOS_CONFIG_GROUP:TOURISM}
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        ip: ${NACOS_DISCOVERY_IP:}
+    openfeign:
+      micrometer:
+        enabled: true
+  config:
+    import:
+      - optional:file:./application-local.yml
+      - optional:file:../application-local.yml
+      - optional:nacos:coupon-service.yml?refreshEnabled=true
+  datasource:
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:tourism_ticketing_platform}?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:${local.db-password:}}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:3s}
+      timeout: ${REDIS_TIMEOUT:3s}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+      acks: all
+      properties:
+        "[enable.idempotence]": true
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JacksonJsonDeserializer
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      properties:
+        "[spring.json.value.default.type]": "com.qinghuan.coupon.message.CouponClaimCommand"
+        "[spring.json.trusted.packages]": "com.qinghuan.coupon.message"
+    listener:
+      ack-mode: record
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8084}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
+  tracing:
+    sampling:
+      probability: 1.0
+
+info:
+  app:
+    name: ${spring.application.name}
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.qinghuan.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+security:
+  jwt:
+    secret: ${JWT_SECRET:dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+    issuer: tourism-ticketing-platform
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:12h}
+    excluded-paths:
+      - /public/**
+      - /swagger-ui/**
+      - /swagger-ui.html
+      - /v3/api-docs/**
+      - /actuator/health
+      - /error
+
+internal:
+  auth:
+    token: ${INTERNAL_SERVICE_TOKEN:}
+
+logging:
+  file:
+    name: logs/tourism-coupon-service.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [${spring.application.name}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [${spring.application.name}] [traceId=%X{traceId:-}] [spanId=%X{spanId:-}] %-5level %logger{36} - %msg%n"

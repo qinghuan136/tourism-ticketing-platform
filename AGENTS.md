@@ -15,7 +15,10 @@ Preserve business correctness, data consistency, API compatibility, and readabil
 tourism-ticketing-platform/
 ├── tourism-common/       # Shared backend responses, exceptions, constants, utilities
 ├── tourism-pojo/         # Backend entities, DTOs, VOs, enums
-├── tourism-server/       # Spring Boot application and business logic
+├── tourism-order-service/ # Booking, ticket, verification and shared migrations
+├── tourism-user-service/ # Authentication, user and visitor service
+├── tourism-venue-service/ # Venue, session, ticket type and catalog service
+├── tourism-gateway/      # Gateway and service routing
 ├── frontend/
 │   ├── tourist/          # Visitor-facing Vue application
 │   ├── operator/         # Operator/admin Vue application
@@ -57,7 +60,7 @@ Use the narrowest relevant checks. On Windows, run Maven through `mvnw.cmd` from
 
 ```powershell
 # Backend module and dependencies
-.\mvnw.cmd -pl tourism-server -am test
+.\mvnw.cmd -pl tourism-order-service -am test
 
 # Full backend suite
 .\mvnw.cmd clean test
@@ -78,8 +81,8 @@ Report changed files, key design decisions, checks executed, and remaining risks
 
 Use only skills relevant to the task and available in the current environment:
 
-- Spring Boot: `tourism-server/.agents/skills/java-springboot/SKILL.md`
-- JUnit: `tourism-server/.agents/skills/java-junit/SKILL.md`
+- Spring Boot: `tourism-order-service/.agents/skills/java-springboot/SKILL.md`
+- JUnit: `tourism-order-service/.agents/skills/java-junit/SKILL.md`
 - Maven build/testing: `.agents/skills/building-and-testing/SKILL.md`
 - Frontend implementation: `build-web-apps:frontend-app-builder`
 - Frontend browser testing: `build-web-apps:frontend-testing-debugging`

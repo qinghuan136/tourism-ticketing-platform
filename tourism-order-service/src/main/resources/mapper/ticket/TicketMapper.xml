@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.qinghuan.ticket.TicketMapper">
+
+    <sql id="ticketDisplayColumns">
+        t.id, t.ticket_code, t.status, bo.venue_name_snapshot as venue_name,
+        bo.visit_date, bo.start_time, bo.end_time,
+        item.visitor_name, item.ticket_type_name,
+        t.valid_from, t.valid_until, t.verified_at
+    </sql>
+
+    <sql id="ticketDisplayJoins">
+        from ticket t
+        join booking_order_item item on item.id = t.order_item_id
+        join booking_order bo on bo.id = item.order_id
+    </sql>
+
+    <resultMap id="ticketResultMap" type="com.qinghuan.pojo.entity.Ticket">
+        <id property="id" column="id"/>
+        <result property="ticketCode" column="ticket_code"/>
+        <result property="orderItemId" column="order_item_id"/>
+        <result property="status" column="status"/>
+        <result property="validFrom" column="valid_from"/>
+        <result property="validUntil" column="valid_until"/>
+        <result property="verifiedAt" column="verified_at"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <!-- 一条订单明细生成一张票；票码由 MySQL UUID 函数生成。 -->
+    <insert id="insertTicketsForOrder">
+        insert into ticket
+            (ticket_code, order_item_id, status, valid_from, valid_until)
+        select replace(uuid(), '-', ''), item.id, 'VALID',
+               timestamp(`order`.visit_date, `order`.start_time),
+               timestamp(`order`.visit_date, `order`.end_time)
+        from booking_order_item item
+        join booking_order `order` on `order`.id = item.order_id
+        where item.order_id = #{orderId}
+    </insert>
+    <update id="updateTickets">
+        update ticket
+        set status = #{tickets[0].status},
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'VALID'
+          and order_item_id in
+        <foreach collection="tickets" item="ticket" open="(" close=")" separator=",">
+            #{ticket.orderItemId}
+        </foreach>
+    </update>
+
+    <!-- 冻结票券后，核销的 VALID -> USED 条件更新会自然失败。 -->
+    <update id="markRefundingByOrderId">
+        update ticket
+        set status = 'REFUNDING',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'VALID'
+          and order_item_id in (
+              select id from booking_order_item where order_id = #{orderId}
+          )
+    </update>
+
+    <update id="voidRefundingByOrderId">
+        update ticket
+        set status = 'VOID',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'REFUNDING'
+          and order_item_id in (
+              select id from booking_order_item where order_id = #{orderId}
+          )
+    </update>
+
+    <update id="restoreRefundingByOrderId">
+        update ticket
+        set status = case when valid_until &gt; #{now} then 'VALID' else 'EXPIRED' end,
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'REFUNDING'
+          and order_item_id in (
+              select id from booking_order_item where order_id = #{orderId}
+          )
+    </update>
+    <select id="listTicketsByOrderId" resultMap="ticketResultMap">
+        select id, ticket_code, order_item_id, status, valid_from, valid_until,
+               verified_at, created_at, updated_at
+        from ticket
+        where order_item_id in
+        (select id from booking_order_item where order_id = #{orderId})
+    </select>
+
+    <select id="listMyTickets" resultType="com.qinghuan.pojo.vo.TicketVO">
+        select <include refid="ticketDisplayColumns"/>
+        <include refid="ticketDisplayJoins"/>
+        where bo.user_id = #{userId}
+        <if test="query.status != null">
+            and t.status = #{query.status}
+        </if>
+        order by t.valid_from desc, t.id desc
+    </select>
+
+    <select id="findMyTicket" resultType="com.qinghuan.pojo.vo.TicketVO">
+        select <include refid="ticketDisplayColumns"/>,
+               bo.id as order_id, bo.order_no,
+               bo.venue_id, bo.venue_address_snapshot as venue_address,
+               item.visitor_id
+        <include refid="ticketDisplayJoins"/>
+        where t.id = #{ticketId}
+          and bo.user_id = #{userId}
+    </select>
+
+    <select id="findForVerificationByCode"
+            resultType="com.qinghuan.pojo.vo.TicketVerificationInfo">
+        select <include refid="ticketDisplayColumns"/>
+        <include refid="ticketDisplayJoins"/>
+        where t.ticket_code = #{ticketCode}
+          and bo.venue_id = #{venueId}
+    </select>
+
+    <select id="findForVerificationById"
+            resultType="com.qinghuan.pojo.vo.TicketVerificationInfo">
+        select <include refid="ticketDisplayColumns"/>
+        <include refid="ticketDisplayJoins"/>
+        where t.id = #{ticketId}
+          and bo.venue_id = #{venueId}
+    </select>
+
+    <!-- 同一张票的并发核销最终只能有一个请求更新成功。 -->
+    <update id="markUsed">
+        update ticket
+        set status = 'USED',
+            verified_at = #{verifiedAt},
+            updated_at = CURRENT_TIMESTAMP
+        where id = #{ticketId}
+          and status = 'VALID'
+          and valid_from &lt;= #{verifiedAt}
+          and valid_until &gt; #{verifiedAt}
+    </update>
+
+    <update id="expireTickets">
+        update ticket
+        set status = 'EXPIRED',
+            updated_at = CURRENT_TIMESTAMP
+        where status = 'VALID'
+          and valid_until &lt;= #{now}
+    </update>
+
+</mapper>

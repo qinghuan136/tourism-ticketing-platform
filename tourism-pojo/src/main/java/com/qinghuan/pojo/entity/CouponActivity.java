@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 @Setter
 public class CouponActivity extends BaseEntity {
     private Long venueId;
+    /** 创建活动时写入的景点名称，用于公开展示和领券快照。 */
+    private String venueNameSnapshot;
     private String name;
     private BigDecimal thresholdAmount;
     private BigDecimal discountAmount;

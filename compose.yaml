@@ -81,6 +81,8 @@ services:
     environment:
       MODE: standalone
       NACOS_AUTH_ENABLE: "false"
+      # Nacos 3.x 的 Admin API 认证独立于客户端认证；本地演示允许初始化任务发布非敏感配置。
+      NACOS_CORE_AUTH_ADMIN_ENABLED: "false"
       NACOS_AUTH_TOKEN: ${NACOS_AUTH_TOKEN}
       NACOS_AUTH_IDENTITY_KEY: ${NACOS_AUTH_IDENTITY_KEY:-tourism-nacos-key}
       NACOS_AUTH_IDENTITY_VALUE: ${NACOS_AUTH_IDENTITY_VALUE:-tourism-nacos-value}
@@ -89,11 +91,31 @@ services:
       - "18080:8080"
       - "8848:8848"
       - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/v1/ns/operator/metrics >/dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
 
-  backend:
+  # 使用仓库内的非敏感配置初始化 Nacos；不需要在宿主机预先手工创建 DataId。
+  nacos-config-init:
+    image: nacos/nacos-server:v3.1.1
+    entrypoint: ["/bin/sh", "/config/publish-nacos-config.sh"]
+    environment:
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-TOURISM}
+    volumes:
+      - ./nacos-config:/config:ro
+    depends_on:
+      nacos:
+        condition: service_healthy
+    restart: "no"
+
+  order-service:
     build:
       context: .
-      dockerfile: docker/backend.Dockerfile
+      dockerfile: docker/order-service.Dockerfile
     environment:
       TZ: Asia/Shanghai
       SPRING_PROFILES_ACTIVE: demo
@@ -104,21 +126,126 @@ services:
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tourism_demo_password}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      CANAL_ENABLED: "true"
-      CANAL_HOST: canal
-      CANAL_PORT: 11111
-      CANAL_SUBSCRIBE: "${MYSQL_DATABASE:-tourism_ticketing_platform}\\.(venue|admission_session|ticket_type|session_ticket_type)"
       JWT_SECRET: ${JWT_SECRET:-dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN in .env}
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-TOURISM}
+      SERVER_PORT: 8082
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      nacos-config-init:
+        condition: service_completed_successfully
+    volumes:
+      - order_service_logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: .
+      dockerfile: docker/user-service.Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-tourism_ticketing_platform}
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tourism_demo_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN in .env}
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-TOURISM}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      nacos-config-init:
+        condition: service_completed_successfully
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  venue-service:
+    build:
+      context: .
+      dockerfile: docker/venue-service.Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-tourism_ticketing_platform}
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tourism_demo_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN in .env}
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-TOURISM}
       AMAP_WEB_SERVICE_KEY: ${AMAP_WEB_SERVICE_KEY:-YOUR_AMAP_WEB_SERVICE_KEY}
       OSS_ENDPOINT: ${OSS_ENDPOINT:-https://oss-cn-hangzhou.aliyuncs.com}
       OSS_REGION: ${OSS_REGION:-cn-hangzhou}
       OSS_ACCESS_KEY_ID: ${OSS_ACCESS_KEY_ID:-YOUR_OSS_ACCESS_KEY_ID}
       OSS_ACCESS_KEY_SECRET: ${OSS_ACCESS_KEY_SECRET:-YOUR_OSS_ACCESS_KEY_SECRET}
       OSS_BUCKET_NAME: ${OSS_BUCKET_NAME:-YOUR_OSS_BUCKET_NAME}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      nacos-config-init:
+        condition: service_completed_successfully
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  coupon-service:
+    build:
+      context: .
+      dockerfile: docker/coupon-service.Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-tourism_ticketing_platform}
+      DB_USERNAME: root
+      DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-tourism_demo_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JWT_SECRET: ${JWT_SECRET:-dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?set INTERNAL_SERVICE_TOKEN in .env}
       NACOS_SERVER_ADDR: nacos:8848
-    ports:
-      - "${BACKEND_PORT:-8080}:8080"
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-TOURISM}
     depends_on:
       mysql:
         condition: service_healthy
@@ -126,10 +253,50 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
-      canal:
-        condition: service_started
-    volumes:
-      - backend_logs:/app/logs
+      nacos:
+        condition: service_healthy
+      nacos-config-init:
+        condition: service_completed_successfully
+      order-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/gateway.Dockerfile
+    environment:
+      TZ: Asia/Shanghai
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_CONFIG_GROUP: ${NACOS_CONFIG_GROUP:-TOURISM}
+      JWT_SECRET: ${JWT_SECRET:-dG91cmlzbS10aWNrZXRpbmctZGVtby1qd3Qtc2VjcmV0LTIwMjY=}
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      nacos-config-init:
+        condition: service_completed_successfully
+      order-service:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      venue-service:
+        condition: service_healthy
+      coupon-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
     restart: unless-stopped
 
   tourist-web:
@@ -141,7 +308,8 @@ services:
     ports:
       - "${TOURIST_PORT:-3000}:80"
     depends_on:
-      - backend
+      gateway:
+        condition: service_healthy
     restart: unless-stopped
 
   operator-web:
@@ -153,11 +321,12 @@ services:
     ports:
       - "${OPERATOR_PORT:-3001}:80"
     depends_on:
-      - backend
+      gateway:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
   mysql_data:
   redis_data:
   kafka_data:
-  backend_logs:
+  order_service_logs:

@@ -20,6 +20,8 @@ public class BookingOrderItem {
     private String visitorName;
     private String visitorIdType;
     private String visitorIdNumber;
+    /** 证件指纹用于同一场次的一人一单判断，不再查询用户服务的 visitor_identity。 */
+    private String visitorFingerprint;
     private String ticketTypeName;
     private BigDecimal unitPrice;
     private LocalDateTime createdAt;
